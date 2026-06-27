@@ -11,11 +11,12 @@ documentar el workaround en el README.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 
 import yaml
 
-CONFIG_DIR = Path.home() / ".gt-compare"
+CONFIG_DIR = Path(os.getenv("GT_COMPARE_CONFIG_DIR", Path.home() / ".gt-compare"))
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
@@ -75,13 +76,18 @@ DEFAULT_CONFIG = {
 
 def ensure_config() -> dict:
     """Crea el config.yaml por defecto si no existe y lo devuelve parseado."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    if not CONFIG_FILE.exists():
-        with CONFIG_FILE.open("w", encoding="utf-8") as fh:
-            yaml.safe_dump(DEFAULT_CONFIG, fh, allow_unicode=True, sort_keys=False)
+    if os.getenv("VERCEL") and not os.getenv("GT_COMPARE_CONFIG_DIR"):
         return DEFAULT_CONFIG
-    with CONFIG_FILE.open(encoding="utf-8") as fh:
-        return yaml.safe_load(fh) or DEFAULT_CONFIG
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        if not CONFIG_FILE.exists():
+            with CONFIG_FILE.open("w", encoding="utf-8") as fh:
+                yaml.safe_dump(DEFAULT_CONFIG, fh, allow_unicode=True, sort_keys=False)
+            return DEFAULT_CONFIG
+        with CONFIG_FILE.open(encoding="utf-8") as fh:
+            return yaml.safe_load(fh) or DEFAULT_CONFIG
+    except OSError:
+        return DEFAULT_CONFIG
 
 
 def load_stores(only: str | None = None) -> list[Store]:

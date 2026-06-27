@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
 
-CACHE_DIR = Path.home() / ".gt-compare" / "cache"
+CACHE_DIR = Path(os.getenv(
+    "GT_COMPARE_CACHE_DIR",
+    "/tmp/gt-compare-cache" if os.getenv("VERCEL") else Path.home() / ".gt-compare" / "cache",
+))
 
 
 def _key_to_path(key: str) -> Path:
@@ -40,9 +44,12 @@ def get(key: str, ttl_seconds: int) -> Any | None:
 
 
 def set(key: str, data: Any) -> None:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = _key_to_path(key)
-    tmp = path.with_suffix(".tmp")
-    with tmp.open("w", encoding="utf-8") as fh:
-        json.dump({"ts": time.time(), "key": key, "data": data}, fh, ensure_ascii=False)
-    tmp.replace(path)
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = _key_to_path(key)
+        tmp = path.with_suffix(".tmp")
+        with tmp.open("w", encoding="utf-8") as fh:
+            json.dump({"ts": time.time(), "key": key, "data": data}, fh, ensure_ascii=False)
+        tmp.replace(path)
+    except OSError:
+        return
