@@ -17,21 +17,21 @@ def _fmt_price(price: float | None) -> str:
     return f"Q{price:,.2f}"
 
 
-def _flatten(query: str, results: list[StoreResult]) -> list[Product]:
+def _flatten(query: str, results: list[StoreResult], plan=None) -> list[Product]:
     """Producto RELEVANTE más barato de cada tienda (filtrado por relevancia)."""
     rows: list[Product] = []
     for res in results:
         if not res.ok:
             continue
-        match = relevance.best_match(query, res.products)
+        match = relevance.best_match(query, res.products, plan=plan)
         if match is not None:
             rows.append(match)
     return rows
 
 
-def render_results(query: str, results: list[StoreResult]) -> Product | None:
+def render_results(query: str, results: list[StoreResult], plan=None) -> Product | None:
     """Imprime la tabla ordenada por precio. Devuelve la fila más barata."""
-    rows = _flatten(query, results)
+    rows = _flatten(query, results, plan=plan)
     rows.sort(key=lambda p: p.price)  # type: ignore[arg-type,return-value]
 
     table = Table(title=f'Resultados para "{query}"', title_style="bold")

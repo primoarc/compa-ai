@@ -70,6 +70,38 @@ stores:
     enabled: true   # ponlo en false para deshabilitar
 ```
 
+### OpenAI Query Planner opcional
+
+Para resolver aliases generales sin codificarlos producto por producto, la app
+puede usar OpenAI como **normalizador de intención**. No compara precios ni
+decide tiendas: solo genera queries alternos y reglas de filtro como
+`include/exclude`, que luego se aplican localmente.
+
+Local:
+
+```bash
+cp .env.example .env
+# editar .env y poner OPENAI_API_KEY
+export $(grep -v '^#' .env | xargs)
+```
+
+Vercel:
+
+```bash
+vercel env add OPENAI_API_KEY production
+vercel --prod
+```
+
+Variables:
+
+- `OPENAI_API_KEY`: habilita el planner.
+- `OPENAI_MODEL`: opcional; default `gpt-5.5`.
+- `GT_COMPARE_DISABLE_OPENAI=1`: apaga OpenAI y usa solo aliases locales.
+- `GT_COMPARE_PLAN_CACHE_SECONDS`: TTL del plan normalizado; default 30 días.
+
+La API web devuelve `planner: "openai"` o `planner: "local"` y
+`normalized_query` para depurar qué ruta se usó.
+
 ## Detalles técnicos
 
 - **Async/paralelo**: todas las tiendas se consultan a la vez con `httpx`.
@@ -91,6 +123,9 @@ stores:
   más barato.
 - **Fallback de búsqueda**: si una búsqueda devuelve 0 resultados, se reintenta
   con solo la primera palabra del query.
+- **Query planner**: si `OPENAI_API_KEY` existe, primero se genera un plan
+  estructurado con aliases, grupos requeridos y exclusiones; el plan se cachea
+  y se usa para consultar tiendas y filtrar títulos.
 - **Logs**: los errores se escriben en `~/.gt-compare/errors.log` y solo se
   muestran en pantalla con `--verbose`.
 

@@ -15,7 +15,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from . import relevance, vtex
+from . import planner, relevance, vtex
 from .stores import load_stores
 
 app = FastAPI(title="Compa AI", docs_url=None, redoc_url=None)
@@ -39,11 +39,11 @@ def _prod_dict(p) -> dict:
     }
 
 
-def _best_per_store(query: str, results: list[vtex.StoreResult]) -> list[dict]:
+def _best_per_store(query: str, results: list[vtex.StoreResult], plan=None) -> list[dict]:
     """Una fila por tienda con su producto más barato + todos los relevantes."""
     rows: list[dict] = []
     for res in results:
-        rel = relevance.relevant_products(query, res.products) if res.ok else []
+        rel = relevance.relevant_products(query, res.products, plan=plan) if res.ok else []
         rel.sort(key=lambda x: x.price)  # type: ignore[arg-type]
         if rel:
             items = [_prod_dict(p) for p in rel[:MAX_ITEMS]]
@@ -79,10 +79,17 @@ async def api_search(q: str, store: Optional[str] = None) -> JSONResponse:
     if not q:
         return JSONResponse({"query": q, "results": [], "cheapest": None})
     stores = load_stores(only=store)
-    results = await vtex.search_all(stores, q, timeout=TIMEOUT, ttl_seconds=TTL)
-    rows = _best_per_store(q, results)
+    plan = await planner.build_query_plan(q)
+    results = await vtex.search_all(stores, q, timeout=TIMEOUT, ttl_seconds=TTL, plan=plan)
+    rows = _best_per_store(q, results, plan=plan)
     cheapest = next((r["store_key"] for r in rows if r["ok"]), None)
-    return JSONResponse({"query": q, "results": rows, "cheapest": cheapest})
+    return JSONResponse({
+        "query": q,
+        "normalized_query": plan.canonical_query,
+        "planner": plan.source,
+        "results": rows,
+        "cheapest": cheapest,
+    })
 
 
 @app.get("/api/stores")

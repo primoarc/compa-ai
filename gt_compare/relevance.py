@@ -34,7 +34,7 @@ _SYN_GROUPS: list[set[str]] = [
     {"aspiradora", "vacuum"},
     {"cafetera", "cafeteras", "percoladora", "percoladoras"},
     {"freidora", "freidoras", "airfryer"},
-    {"playera", "playeras", "camiseta", "camisetas", "tshirt", "tee"},
+    {"playera", "playeras", "camiseta", "camisetas", "tshirt"},
     {"tenis", "sneaker", "sneakers", "zapatilla", "zapatillas"},
     {"mochila", "mochilas", "backpack", "backpacks"},
     {"lonchera", "loncheras", "lunchbox", "lunchboxes"},
@@ -119,7 +119,6 @@ _ALIAS_GROUPS: list[tuple[str, ...]] = [
         "t-shirt",
         "t shirt",
         "tshirt",
-        "tee",
     ),
     (
         "cafetera",
@@ -371,7 +370,49 @@ def _allows_for_phrase(query: str) -> bool:
     )
 
 
-def is_relevant(query: str, name: str) -> bool:
+def _plan_attr(plan, name: str, default):
+    if plan is None:
+        return default
+    if isinstance(plan, dict):
+        return plan.get(name, default)
+    return getattr(plan, name, default)
+
+
+def _term_matches(term: str, name_norm: str, name_toks: set[str]) -> bool:
+    term_norm = normalize(term)
+    term_toks = tokens(term_norm)
+    if not term_toks:
+        return False
+    if len(term_toks) > 1 and term_norm in name_norm:
+        return True
+    return all(_variant_matches((tok,), name_norm, name_toks) for tok in term_toks)
+
+
+def _plan_excludes_match(plan, name_norm: str, name_toks: set[str], query_toks: list[str]) -> bool:
+    for term in _plan_attr(plan, "exclude_terms", []) or []:
+        term_toks = tokens(term)
+        if not term_toks:
+            continue
+        # Si el usuario pidió explícitamente ese término, no lo tratamos como
+        # exclusión. Ej: "crema alisadora" sí debe permitir crema.
+        if any(tok in query_toks for tok in term_toks):
+            continue
+        if _term_matches(term, name_norm, name_toks):
+            return True
+    return False
+
+
+def _plan_required_matches(plan, name_norm: str, name_toks: set[str]) -> bool:
+    groups = _plan_attr(plan, "required_any_groups", []) or []
+    if not groups:
+        return False
+    for group in groups:
+        if not any(_term_matches(term, name_norm, name_toks) for term in group):
+            return False
+    return True
+
+
+def is_relevant(query: str, name: str, plan=None) -> bool:
     """¿El producto `name` coincide con la intención de `query`?"""
     qvariants = query_token_variants(query)
     if not qvariants or not qvariants[0]:
@@ -380,6 +421,9 @@ def is_relevant(query: str, name: str) -> bool:
     name_toks = set(tokens(name))
 
     original_qtoks = _content_tokens(query)
+    if _plan_excludes_match(plan, name_norm, name_toks, original_qtoks):
+        return False
+
     query_wants_accessory = any(t in _ACCESSORY for t in original_qtoks)
     allows_for_phrase = _allows_for_phrase(query)
     if not query_wants_accessory:
@@ -403,10 +447,13 @@ def is_relevant(query: str, name: str) -> bool:
         if not ({"consola", "console"} & name_toks):
             return False
 
-    return any(
+    if any(
         _variant_matches(variant, name_norm, name_toks)
         for variant in qvariants
-    )
+    ):
+        return True
+
+    return _plan_required_matches(plan, name_norm, name_toks)
 
 
 def _variant_matches(qtoks: tuple[str, ...], name_norm: str, name_toks: set[str]) -> bool:
@@ -428,17 +475,17 @@ def _variant_matches(qtoks: tuple[str, ...], name_norm: str, name_toks: set[str]
     return True
 
 
-def relevant_products(query: str, products: Iterable) -> list:
+def relevant_products(query: str, products: Iterable, plan=None) -> list:
     """Productos con precio > 0 que coinciden con el query."""
     return [
         p for p in products
-        if getattr(p, "price", None) and p.price > 0 and is_relevant(query, p.name)
+        if getattr(p, "price", None) and p.price > 0 and is_relevant(query, p.name, plan=plan)
     ]
 
 
-def best_match(query: str, products: Iterable):
+def best_match(query: str, products: Iterable, plan=None):
     """El producto relevante más barato, o None si ninguno coincide."""
-    rel = relevant_products(query, products)
+    rel = relevant_products(query, products, plan=plan)
     if not rel:
         return None
     return min(rel, key=lambda p: p.price)

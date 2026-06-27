@@ -85,9 +85,13 @@ async def _search_with_aliases(
     client,
     store: Store,
     query: str,
+    plan=None,
     **kw,
 ) -> StoreResult:
-    queries = relevance.search_queries(query, limit=4)
+    if plan is not None and getattr(plan, "search_queries", None):
+        queries = list(plan.search_queries[:6])
+    else:
+        queries = relevance.search_queries(query, limit=4)
     if len(queries) <= 1:
         return await fetcher(client, store, query, **kw)
 
@@ -203,6 +207,7 @@ async def search_all(
     timeout: int,
     ttl_seconds: int,
     use_cache: bool = True,
+    plan=None,
 ) -> list[StoreResult]:
     """Consulta todas las tiendas VTEX en paralelo."""
     from . import scraper  # import lazy para evitar el ciclo vtex<->scraper
@@ -218,17 +223,17 @@ async def search_all(
                 # Max es VTEX pero está tras WAF: si el usuario capturó headers
                 # de la app móvil (max_headers), enruta por el fetch dedicado.
                 if s.key == "max" and has_max_headers:
-                    tasks.append(_search_with_aliases(scraper.fetch_max, client, s, query, **kw))
+                    tasks.append(_search_with_aliases(scraper.fetch_max, client, s, query, plan=plan, **kw))
                 else:
-                    tasks.append(_search_with_aliases(search_store, client, s, query, **kw))
+                    tasks.append(_search_with_aliases(search_store, client, s, query, plan=plan, **kw))
             elif s.kind == "magento":
-                tasks.append(_search_with_aliases(scraper.fetch_magento, client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_magento, client, s, query, plan=plan, **kw))
             elif s.kind == "kemik":
-                tasks.append(_search_with_aliases(scraper.fetch_kemik, client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_kemik, client, s, query, plan=plan, **kw))
             elif s.kind == "pricesmart":
-                tasks.append(_search_with_aliases(scraper.fetch_pricesmart, client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_pricesmart, client, s, query, plan=plan, **kw))
             elif s.kind == "max":
-                tasks.append(_search_with_aliases(scraper.fetch_max_constructor, client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_max_constructor, client, s, query, plan=plan, **kw))
             else:
-                tasks.append(_search_with_aliases(scraper.search_store, client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.search_store, client, s, query, plan=plan, **kw))
         return await asyncio.gather(*tasks)

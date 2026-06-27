@@ -9,7 +9,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from . import display, vtex
+from . import display, planner, vtex
 from .stores import CONFIG_DIR, load_stores
 
 app = typer.Typer(
@@ -44,11 +44,15 @@ def _run_search(query: str, store: str | None):
         console.print(f"[red]No hay tiendas que coincidan con '{store}'.[/red]")
         raise typer.Exit(1)
     cfg_timeout = 8
-    return asyncio.run(
-        vtex.search_all(
-            stores, query, timeout=cfg_timeout, ttl_seconds=30 * 60
-        )
+    return asyncio.run(_run_search_async(stores, query, cfg_timeout))
+
+
+async def _run_search_async(stores, query: str, timeout: int):
+    plan = await planner.build_query_plan(query)
+    results = await vtex.search_all(
+        stores, query, timeout=timeout, ttl_seconds=30 * 60, plan=plan
     )
+    return results, plan
 
 
 @app.command()
@@ -60,8 +64,8 @@ def search(
     """Busca un producto en las tiendas y muestra la tabla por precio."""
     _setup_logging(verbose)
     with console.status(f"Buscando '{query}'..."):
-        results = _run_search(query, store)
-    display.render_results(query, results)
+        results, plan = _run_search(query, store)
+    display.render_results(query, results, plan=plan)
 
 
 @app.command()
@@ -88,8 +92,8 @@ def batch(
     for item in items:
         console.rule(f"[bold]{item}[/bold]")
         with console.status(f"Buscando '{item}'..."):
-            results = _run_search(item, None)
-        cheapest = display.render_results(item, results)
+            results, plan = _run_search(item, None)
+        cheapest = display.render_results(item, results, plan=plan)
         if cheapest:
             savings.append((item, cheapest))
         console.print()
