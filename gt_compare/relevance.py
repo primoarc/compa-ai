@@ -32,6 +32,14 @@ _SYN_GROUPS: list[set[str]] = [
     {"microondas", "microwave"},
     {"congelador", "freezer"},
     {"aspiradora", "vacuum"},
+    {"cafetera", "cafeteras", "percoladora", "percoladoras"},
+    {"freidora", "freidoras", "airfryer"},
+    {"playera", "playeras", "camiseta", "camisetas", "tshirt", "tee"},
+    {"tenis", "sneaker", "sneakers", "zapatilla", "zapatillas"},
+    {"mochila", "mochilas", "backpack", "backpacks"},
+    {"lonchera", "loncheras", "lunchbox", "lunchboxes"},
+    {"pachon", "pachones", "termo", "termos"},
+    {"panal", "panales", "diaper", "diapers"},
     {"pelo", "cabello", "cabellos", "hair"},
     {"secadora", "secadoras", "secador", "secadores", "secado", "dryer"},
     {"ps5", "playstation5"},
@@ -78,6 +86,87 @@ _ALIAS_GROUPS: list[tuple[str, ...]] = [
         "galletas para perros",
         "bocadillos para perro",
         "bocadillos para perros",
+    ),
+    (
+        "playera",
+        "camiseta",
+        "t-shirt",
+        "t shirt",
+        "tshirt",
+        "tee",
+    ),
+    (
+        "cafetera",
+        "percoladora",
+        "coffee maker",
+        "coffee machine",
+        "maquina de cafe",
+    ),
+    (
+        "freidora de aire",
+        "air fryer",
+        "airfryer",
+    ),
+    (
+        "tenis",
+        "zapatos deportivos",
+        "sneakers",
+        "zapatillas deportivas",
+    ),
+    (
+        "audifonos",
+        "auriculares",
+        "earbuds",
+        "headphones",
+    ),
+    (
+        "mochila",
+        "backpack",
+    ),
+    (
+        "lonchera",
+        "lunchbox",
+    ),
+    (
+        "pachon",
+        "botella de agua",
+        "termo",
+        "water bottle",
+    ),
+    (
+        "panales",
+        "pañales",
+        "diapers",
+    ),
+    (
+        "coche de bebe",
+        "coche para bebe",
+        "carreola",
+        "stroller",
+    ),
+    (
+        "bateria externa",
+        "power bank",
+        "powerbank",
+        "cargador portatil",
+    ),
+    (
+        "funda para celular",
+        "case para celular",
+        "protector para celular",
+        "phone case",
+    ),
+    (
+        "comida para perro",
+        "alimento para perro",
+        "concentrado para perro",
+        "dog food",
+    ),
+    (
+        "comida para gato",
+        "alimento para gato",
+        "concentrado para gato",
+        "cat food",
     ),
 ]
 
@@ -153,9 +242,22 @@ def _alias_tokens(group: tuple[str, ...]) -> list[tuple[str, ...]]:
 _ALIAS_TOKEN_GROUPS: list[list[tuple[str, ...]]] = [
     _alias_tokens(group) for group in _ALIAS_GROUPS
 ]
-_CONSOLE_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[1])
-_HAIR_DRYER_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[0])
-_PET_TREAT_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[2])
+
+
+def _alias_token_set(anchor: str) -> set[tuple[str, ...]]:
+    anchor_tokens = tuple(_content_tokens(anchor))
+    for group in _ALIAS_TOKEN_GROUPS:
+        if anchor_tokens in group:
+            return set(group)
+    return set()
+
+
+_CONSOLE_ALIAS_TOKENS = _alias_token_set("ps5")
+_HAIR_DRYER_ALIAS_TOKENS = _alias_token_set("secadora de pelo")
+_PET_TREAT_ALIAS_TOKENS = _alias_token_set("treats para perro")
+_PET_FOOD_ALIAS_TOKENS = (
+    _alias_token_set("comida para perro") | _alias_token_set("comida para gato")
+)
 
 
 def _replace_once(
@@ -233,7 +335,11 @@ def _is_console_query(query: str) -> bool:
 
 def _allows_for_phrase(query: str) -> bool:
     base = tuple(_content_tokens(query))
-    return base in _HAIR_DRYER_ALIAS_TOKENS or base in _PET_TREAT_ALIAS_TOKENS
+    return (
+        base in _HAIR_DRYER_ALIAS_TOKENS
+        or base in _PET_TREAT_ALIAS_TOKENS
+        or base in _PET_FOOD_ALIAS_TOKENS
+    )
 
 
 def is_relevant(query: str, name: str) -> bool:
