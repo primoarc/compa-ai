@@ -28,6 +28,8 @@ def _as_price(raw) -> float | None:
     if raw is None or raw == "":
         return None
     try:
+        if isinstance(raw, str):
+            raw = raw.replace(",", "").strip()
         return round(float(raw), 2)
     except (TypeError, ValueError):
         return None
@@ -59,12 +61,14 @@ async def search_store(
 
 _RE_ITEM = re.compile(r'product-item-info', re.I)
 _RE_LINK = re.compile(
-    r'class="product-item-link"\s+href="([^"]+)"\s*>([^<]+)<', re.I
+    r'<a\b[^>]*class="[^"]*product-item-link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+    re.I | re.S,
 )
 _RE_PRICE = re.compile(
-    r'data-price-amount="([\d.]+)"\s+data-price-type="finalPrice"', re.I
+    r'data-price-amount="([\d.]+)"', re.I
 )
 _RE_IMG = re.compile(r'class="product-image-photo"[^>]*\ssrc="([^"]+)"', re.I)
+_RE_TAG = re.compile(r"<[^>]+>")
 
 
 def _parse_magento(store: Store, html: str) -> list[Product]:
@@ -76,7 +80,11 @@ def _parse_magento(store: Store, html: str) -> list[Product]:
         link = _RE_LINK.search(chunk)
         if not link:
             continue
-        url, name = link.group(1), html_lib.unescape(link.group(2)).strip()
+        url = link.group(1)
+        name = html_lib.unescape(_RE_TAG.sub(" ", link.group(2))).strip()
+        name = re.sub(r"\s+", " ", name)
+        if not name:
+            continue
         price_m = _RE_PRICE.search(chunk)
         price = float(price_m.group(1)) if price_m else None
         img_m = _RE_IMG.search(chunk)
@@ -322,6 +330,248 @@ async def fetch_magento(
             cache.set(ck, html)
         return StoreResult(store, products, ok=True)
     except asyncio.TimeoutError:
+        return StoreResult(store, [], ok=False, error="timeout")
+    except httpx.HTTPStatusError as exc:
+        logger.error("%s HTTP %s", store.key, exc.response.status_code)
+        return StoreResult(store, [], ok=False, error=f"HTTP {exc.response.status_code}")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("%s error: %s", store.key, exc)
+        return StoreResult(store, [], ok=False, error=str(exc))
+
+
+# --- Intelaf: API pública usada por su frontend Next.js -------------------
+
+_INTELAF_ENDPOINT = "https://api.intelaf.com:2053/app/api/producto/busqueda"
+
+
+def _intelaf_price(item: dict) -> float | None:
+    discount = _as_price(item.get("PrecioDescuento"))
+    if discount and discount > 0:
+        return discount
+    return _as_price(item.get("PrecioNormal"))
+
+
+def _parse_intelaf(store: Store, payload: dict) -> list[Product]:
+    products: list[Product] = []
+    data = payload.get("Response", payload)
+    for item in data.get("Productos", []) or []:
+        code = item.get("Codigo") or ""
+        if not code:
+            continue
+        stock = sum(float(x.get("Existencia") or 0) for x in item.get("Existencia", []) or [])
+        if item.get("EnBodega"):
+            stock += 1
+        if item.get("EnTransito"):
+            stock += 1
+        products.append(
+            Product(
+                store_key=store.key,
+                store_name=store.name,
+                name=html_lib.unescape(item.get("Descripcion") or code).strip(),
+                price=_intelaf_price(item),
+                available=int(stock),
+                url=f"https://{store.domain}/producto/{quote(code, safe='')}",
+                image=item.get("Imagen"),
+            )
+        )
+    return products
+
+
+async def fetch_intelaf(
+    client: httpx.AsyncClient,
+    store: Store,
+    query: str,
+    *,
+    timeout: int,
+    ttl_seconds: int,
+    use_cache: bool = True,
+) -> StoreResult:
+    ck = cache.make_key(store.key, query)
+    if use_cache:
+        cached = cache.get(ck, ttl_seconds)
+        if cached is not None:
+            return StoreResult(store, _parse_intelaf(store, cached), ok=True)
+
+    payload = {
+        "PrecioMenor": 0,
+        "PrecioMayor": 100000,
+        "Marcas": [],
+        "SucursalesCodigo": [],
+        "Orden": "default",
+        "CantidadMaxima": 24,
+        "Query": query.strip(),
+        "Categorias": [],
+        "Pagina": 1,
+        "Acendente": True,
+        "Instruccion": {"nombre": "busqueda", "valor": ""},
+        "NumeroRecienIngreso": 0,
+    }
+    headers = {
+        **HEADERS,
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+        "Origin": f"https://{store.domain}",
+        "Referer": f"https://{store.domain}/",
+    }
+    try:
+        resp = await asyncio.wait_for(
+            client.post(_INTELAF_ENDPOINT, headers=headers, json=payload), timeout=timeout
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if use_cache:
+            cache.set(ck, data)
+        return StoreResult(store, _parse_intelaf(store, data), ok=True)
+    except asyncio.TimeoutError:
+        return StoreResult(store, [], ok=False, error="timeout")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("intelaf error: %s", exc)
+        return StoreResult(store, [], ok=False, error=str(exc))
+
+
+# --- Novex: Doofinder, el motor público usado por su buscador ------------
+
+_NOVEX_DOOFINDER = "https://us1-search.doofinder.com/5/search"
+_NOVEX_HASHID = "a57e788687f5cb996139456454036d97"
+
+
+def _parse_novex(store: Store, payload: dict) -> list[Product]:
+    products: list[Product] = []
+    for item in payload.get("results", []) or []:
+        sku = str(item.get("id") or item.get("mpn") or "").strip()
+        title = item.get("title") or sku
+        price = _as_price(item.get("sale_price") or item.get("best_price") or item.get("price"))
+        available = 1 if str(item.get("availability", "")).lower() == "in stock" else 0
+        products.append(
+            Product(
+                store_key=store.key,
+                store_name=store.name,
+                name=html_lib.unescape(str(title)).strip(),
+                price=price,
+                available=available,
+                url=item.get("link") or f"https://{store.domain}/producto/{quote(sku, safe='')}",
+                image=item.get("image_link"),
+            )
+        )
+    return products
+
+
+async def fetch_novex(
+    client: httpx.AsyncClient,
+    store: Store,
+    query: str,
+    *,
+    timeout: int,
+    ttl_seconds: int,
+    use_cache: bool = True,
+) -> StoreResult:
+    ck = cache.make_key(store.key, query)
+    if use_cache:
+        cached = cache.get(ck, ttl_seconds)
+        if cached is not None:
+            return StoreResult(store, _parse_novex(store, cached), ok=True)
+
+    params = {
+        "hashid": _NOVEX_HASHID,
+        "query": query.strip(),
+        "rpp": "24",
+    }
+    headers = {
+        **HEADERS,
+        "Accept": "application/json",
+        "Origin": f"https://{store.domain}",
+        "Referer": f"https://{store.domain}/",
+    }
+    try:
+        resp = await asyncio.wait_for(
+            client.get(_NOVEX_DOOFINDER, headers=headers, params=params), timeout=timeout
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if use_cache:
+            cache.set(ck, data)
+        return StoreResult(store, _parse_novex(store, data), ok=True)
+    except (asyncio.TimeoutError, httpx.TimeoutException):
+        return StoreResult(store, [], ok=False, error="timeout")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("novex error: %s", exc)
+        return StoreResult(store, [], ok=False, error=str(exc))
+
+
+# --- WooCommerce / WordPress ---------------------------------------------
+
+_WC_ITEM = re.compile(r'<li\b[^>]*class="[^"]*\bproduct\b[^"]*"[^>]*>(.*?)</li>', re.I | re.S)
+_WC_LINK = re.compile(r'<a\b[^>]*href="([^"]+)"[^>]*woocommerce-loop-product__link[^>]*>', re.I | re.S)
+_WC_TITLE = re.compile(r'<h2\b[^>]*class="[^"]*woocommerce-loop-product__title[^"]*"[^>]*>(.*?)</h2>', re.I | re.S)
+_WC_AMOUNT = re.compile(r'woocommerce-Price-currencySymbol">\s*Q\s*</span>\s*([\d,]+(?:\.\d+)?)', re.I)
+_WC_IMG = re.compile(r'\b(?:data-lazy-src|src)="(https?://[^"]+)"', re.I)
+
+
+def _parse_woocommerce(store: Store, html: str) -> list[Product]:
+    products: list[Product] = []
+    for chunk in _WC_ITEM.findall(html):
+        link_m = _WC_LINK.search(chunk)
+        title_m = _WC_TITLE.search(chunk)
+        if not (link_m and title_m):
+            continue
+        amounts = _WC_AMOUNT.findall(chunk)
+        price = _as_price(amounts[-1]) if amounts else None
+        img_m = _WC_IMG.search(chunk)
+        agotado = "outofstock" in chunk.lower() or "agotado" in chunk.lower()
+        name = html_lib.unescape(_RE_TAG.sub(" ", title_m.group(1))).strip()
+        name = re.sub(r"\s+", " ", name)
+        if not name:
+            continue
+        products.append(
+            Product(
+                store_key=store.key,
+                store_name=store.name,
+                name=name,
+                price=price,
+                available=0 if agotado else 1,
+                url=link_m.group(1),
+                image=img_m.group(1) if img_m else None,
+            )
+        )
+    return products
+
+
+async def fetch_woocommerce(
+    client: httpx.AsyncClient,
+    store: Store,
+    query: str,
+    *,
+    timeout: int,
+    ttl_seconds: int,
+    use_cache: bool = True,
+) -> StoreResult:
+    ck = cache.make_key(store.key, query)
+    if use_cache:
+        cached = cache.get(ck, ttl_seconds)
+        if cached is not None:
+            return StoreResult(store, _parse_woocommerce(store, cached), ok=True)
+
+    url = f"https://{store.domain}/?s={quote(query.strip())}&post_type=product"
+    headers = {**HEADERS, "Accept": "text/html,application/xhtml+xml"}
+    try:
+        resp = await asyncio.wait_for(
+            client.get(url, headers=headers), timeout=timeout
+        )
+        resp.raise_for_status()
+        html = resp.text
+        products = _parse_woocommerce(store, html)
+        if not products and " " in query.strip():
+            url = f"https://{store.domain}/?s={quote(query.strip().split()[0])}&post_type=product"
+            resp = await asyncio.wait_for(
+                client.get(url, headers=headers), timeout=timeout
+            )
+            resp.raise_for_status()
+            html = resp.text
+            products = _parse_woocommerce(store, html)
+        if use_cache:
+            cache.set(ck, html)
+        return StoreResult(store, products, ok=True)
+    except (asyncio.TimeoutError, httpx.TimeoutException):
         return StoreResult(store, [], ok=False, error="timeout")
     except httpx.HTTPStatusError as exc:
         logger.error("%s HTTP %s", store.key, exc.response.status_code)

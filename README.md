@@ -14,15 +14,24 @@ catálogo, sin autenticación).
 | `max`        | Max Distelsa      | www.max.com.gt         | ✅ Constructor.io (API) |
 | `curacao`    | La Curacao        | www.lacuracaonline.com | ✅ Magento (scraper HTML) |
 | `radioshack` | RadioShack        | www.radioshackla.com   | ✅ Magento (scraper HTML) |
+| `steren`     | Steren            | www.steren.com.gt      | ✅ Magento (scraper HTML) |
+| `epa`        | EPA               | gt.epaenlinea.com      | ✅ Magento (scraper HTML) |
 | `kemik`      | Kemik             | www.kemik.gt           | ✅ Next.js SSR (scraper HTML) |
+| `intelaf`    | Intelaf           | www.intelaf.com        | ✅ API pública |
+| `novex`      | Novex             | www.novex.com.gt       | ✅ Doofinder (API) |
+| `sears`      | Sears             | sears.com.gt           | ✅ WooCommerce (scraper HTML) |
 | `pricesmart` | PriceSmart        | www.pricesmart.com     | ✅ Bloomreach Discovery (API) |
 
-> **8 tiendas activas.** Cada plataforma se maneja distinto:
+> **13 tiendas activas.** Cada plataforma se maneja distinto:
 > - **VTEX** (Cemaco, Walmart, Siman): API pública de catálogo.
-> - **Magento** (La Curacao, RadioShack — Grupo Unicomer): scraping del HTML de
->   `/guatemala/search/{q}` (`scraper.fetch_magento`).
+> - **Magento** (La Curacao, RadioShack, Steren, EPA): scraping del HTML del
+>   listado de búsqueda (`scraper.fetch_magento`).
 > - **Next.js SSR** (Kemik): scraping del HTML de `/search?query={q}`
 >   (`scraper.fetch_kemik`).
+> - **Intelaf**: API pública usada por su frontend (`scraper.fetch_intelaf`).
+> - **Novex**: Doofinder, el motor público del buscador (`scraper.fetch_novex`).
+> - **WooCommerce** (Sears): scraping del HTML de búsqueda
+>   (`scraper.fetch_woocommerce`).
 > - **Bloomreach Discovery** (PriceSmart): API pública `core.dxpapi.com` con el
 >   `fl` correcto (`scraper.fetch_pricesmart`).
 > - **Constructor.io** (Max): API pública usada por `/search?q=...`
@@ -179,5 +188,6 @@ Si otra tienda empieza a bloquear de forma persistente:
 
 - `scraper.py` aloja las tiendas **no-VTEX**, reusando los mismos objetos
   `Product`, cache y display: **La Curacao** y **RadioShack** (Magento),
-  **Kemik** (Next.js SSR) y **PriceSmart** (Bloomreach Discovery). El siguiente
-  candidato es **Novex** con el mismo patrón.
+  **Steren** y **EPA** (Magento), **Kemik** (Next.js SSR), **Intelaf** (API),
+  **Novex** (Doofinder), **Sears** (WooCommerce) y **PriceSmart**
+  (Bloomreach Discovery).

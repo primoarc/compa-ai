@@ -195,7 +195,7 @@
 
   <div id="out"></div>
 
-  <footer>Motor: el mismo CLI <code>gt-compare</code> · 6 tiendas en paralelo</footer>
+  <footer>Motor: el mismo CLI <code>gt-compare</code> · <span id="storeCount">tiendas</span> en paralelo</footer>
 </div>
 
 <script>
@@ -204,6 +204,7 @@ const qEl = document.getElementById('q');
 const goEl = document.getElementById('go');
 const chipsEl = document.getElementById('chips');
 const bootEl = document.getElementById('boot');
+const storeCountEl = document.getElementById('storeCount');
 let activeStore = null;
 
 if(sessionStorage.getItem('compaBootSeen') === '1'){
@@ -218,6 +219,7 @@ const fmt = n => 'Q' + n.toLocaleString('es-GT', {minimumFractionDigits:2, maxim
 async function loadStores(){
   try{
     const s = await (await fetch('/api/stores')).json();
+    storeCountEl.textContent = `${s.length} tiendas`;
     chipsEl.innerHTML = '<div class="chip on" data-k="">Todas</div>' +
       s.map(x=>`<div class="chip" data-k="${x.key}">${x.name}</div>`).join('');
     chipsEl.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{

@@ -234,6 +234,12 @@ async def search_all(
                 tasks.append(_search_with_aliases(scraper.fetch_pricesmart, client, s, query, plan=plan, **kw))
             elif s.kind == "max":
                 tasks.append(_search_with_aliases(scraper.fetch_max_constructor, client, s, query, plan=plan, **kw))
+            elif s.kind == "intelaf":
+                tasks.append(_search_with_aliases(scraper.fetch_intelaf, client, s, query, plan=plan, **kw))
+            elif s.kind == "novex":
+                tasks.append(_search_with_aliases(scraper.fetch_novex, client, s, query, plan=plan, **kw))
+            elif s.kind == "woocommerce":
+                tasks.append(_search_with_aliases(scraper.fetch_woocommerce, client, s, query, plan=plan, **kw))
             else:
                 tasks.append(_search_with_aliases(scraper.search_store, client, s, query, plan=plan, **kw))
         return await asyncio.gather(*tasks)

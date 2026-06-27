@@ -210,6 +210,10 @@ _ACCESSORY = {
     "disco", "unidad", "lector", "libro", "libros", "receta", "recetas",
     "crema", "shampoo", "acondicionador", "tratamiento", "spray", "gel",
     "gancho", "ganchos", "pinza", "pinzas", "peine", "peines", "cepillo", "cepillos",
+    "tornillo", "tornillos", "tornilleria", "arandela", "arandelas", "broca",
+    "brocas", "punta", "puntas", "porta",
+    "pad", "mousepad", "alfombra", "alfombras",
+    "botella", "botellas", "burbujas", "minnie", "mickey",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -446,6 +450,7 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
                 for syn in _synonyms(t):
                     accessory_for_query = (
                         rf"\bpara\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}"
+                        rf"|\bpara\s+uso\s+con\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}"
                     )
                     if not allows_for_phrase and re.search(accessory_for_query, name_norm):
                         return False

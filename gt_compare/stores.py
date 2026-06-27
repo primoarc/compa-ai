@@ -47,16 +47,26 @@ DEFAULT_STORES: list[Store] = [
           kind="magento", search_path="/guatemala/search/"),
     Store("radioshack", "RadioShack", "www.radioshackla.com",
           kind="magento", search_path="/guatemala/search/"),
+    Store("steren", "Steren", "www.steren.com.gt",
+          kind="magento", search_path="/catalogsearch/result/?q="),
+    Store("epa", "EPA", "gt.epaenlinea.com",
+          kind="magento", search_path="/catalogsearch/result/?q="),
 
     # --- Kemik: Next.js con SSR; se scrapea el HTML de /search?query={q} ---
     Store("kemik", "Kemik", "www.kemik.gt", kind="kemik"),
 
+    # --- Intelaf: API pública usada por su frontend Next.js ---
+    Store("intelaf", "Intelaf", "www.intelaf.com", kind="intelaf"),
+
+    # --- Novex: Doofinder, el motor público usado por su buscador ---
+    Store("novex", "Novex", "www.novex.com.gt", kind="novex"),
+
+    # --- Sears Guatemala: WooCommerce/WordPress ---
+    Store("sears", "Sears", "sears.com.gt", kind="woocommerce"),
+
     # PriceSmart: Bloomreach Discovery. El precio está en campos por país+club
     # (price_GT_6303, en centavos). Ver scraper.fetch_pricesmart.
     Store("pricesmart", "PriceSmart", "www.pricesmart.com", kind="pricesmart"),
-
-    # --- Tiendas no-VTEX pendientes (ver scraper.py) ---
-    # Store("novex", "Novex", "www.novex.com.gt", kind="scraper", enabled=False),
 ]
 
 
