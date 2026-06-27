@@ -37,13 +37,10 @@ DEFAULT_STORES: list[Store] = [
     # --- VTEX verificadas y funcionando ---
     Store("cemaco", "Cemaco", "www.cemaco.com"),
     Store("walmart", "Walmart Guatemala", "www.walmart.com.gt"),
+    Store("siman", "Siman", "gt.siman.com"),
 
-    # --- VTEX bloqueadas / no alcanzables (deshabilitadas, ver README) ---
-    # Max Distelsa: WAF (Cloudflare/Akamai) devuelve 403 en TODOS los endpoints
-    # y con UA de app móvil. Bloqueo en el edge, no se evade server-side.
-    # Workaround: intercept de app móvil (ver scraper.fetch_max + config
-    # max_headers) o Playwright headless. Ver README.
-    Store("max", "Max Distelsa", "www.max.com.gt", enabled=False),
+    # Max usa Constructor.io para búsqueda pública. Ver scraper.fetch_max_constructor.
+    Store("max", "Max Distelsa", "www.max.com.gt", kind="max"),
     # --- Magento (Grupo Unicomer), scraping HTML de /guatemala/search/{q} ---
     # GraphQL está deshabilitado en estos sitios; se parsea el listado HTML.
     Store("curacao", "La Curacao", "www.lacuracaonline.com",
@@ -63,15 +60,48 @@ DEFAULT_STORES: list[Store] = [
 ]
 
 
-DEFAULT_CONFIG = {
-    "stores": [
+def _default_stores_config() -> list[dict]:
+    return [
         {"key": s.key, "name": s.name, "domain": s.domain,
          "kind": s.kind, "enabled": s.enabled, "search_path": s.search_path}
         for s in DEFAULT_STORES
-    ],
+    ]
+
+
+DEFAULT_CONFIG = {
+    "stores": _default_stores_config(),
     "timeout_seconds": 8,
     "cache_minutes": 30,
 }
+
+
+def _merge_default_config(cfg: dict) -> dict:
+    """Agrega tiendas nuevas al config existente sin pisar preferencias."""
+    if not isinstance(cfg, dict):
+        return DEFAULT_CONFIG
+
+    merged = dict(DEFAULT_CONFIG)
+    merged.update(cfg)
+    current = list(cfg.get("stores") or [])
+    defaults_by_key = {s["key"]: s for s in _default_stores_config()}
+    for store in current:
+        if not isinstance(store, dict):
+            continue
+        # Migración del default anterior: Max estaba deshabilitado como VTEX por
+        # WAF. Ahora se consulta por Constructor.io y debe quedar activo.
+        if (
+            store.get("key") == "max"
+            and store.get("domain") == "www.max.com.gt"
+            and store.get("kind", "vtex") == "vtex"
+            and store.get("enabled") is False
+        ):
+            store.update(defaults_by_key["max"])
+    seen = {s.get("key") for s in current if isinstance(s, dict)}
+    for store in defaults_by_key.values():
+        if store["key"] not in seen:
+            current.append(store)
+    merged["stores"] = current
+    return merged
 
 
 def ensure_config() -> dict:
@@ -85,7 +115,10 @@ def ensure_config() -> dict:
                 yaml.safe_dump(DEFAULT_CONFIG, fh, allow_unicode=True, sort_keys=False)
             return DEFAULT_CONFIG
         with CONFIG_FILE.open(encoding="utf-8") as fh:
-            return yaml.safe_load(fh) or DEFAULT_CONFIG
+            cfg = _merge_default_config(yaml.safe_load(fh) or DEFAULT_CONFIG)
+        with CONFIG_FILE.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(cfg, fh, allow_unicode=True, sort_keys=False)
+        return cfg
     except OSError:
         return DEFAULT_CONFIG
 

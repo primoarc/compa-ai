@@ -227,6 +227,8 @@ async def search_all(
                 tasks.append(_search_with_aliases(scraper.fetch_kemik, client, s, query, **kw))
             elif s.kind == "pricesmart":
                 tasks.append(_search_with_aliases(scraper.fetch_pricesmart, client, s, query, **kw))
+            elif s.kind == "max":
+                tasks.append(_search_with_aliases(scraper.fetch_max_constructor, client, s, query, **kw))
             else:
                 tasks.append(_search_with_aliases(scraper.search_store, client, s, query, **kw))
         return await asyncio.gather(*tasks)

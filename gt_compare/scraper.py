@@ -24,6 +24,15 @@ from .vtex import HEADERS, SEARCH_PATH, Product, StoreResult, _parse_products
 logger = logging.getLogger("gt_compare")
 
 
+def _as_price(raw) -> float | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        return round(float(raw), 2)
+    except (TypeError, ValueError):
+        return None
+
+
 async def search_store(
     client: httpx.AsyncClient,
     store: Store,
@@ -322,7 +331,106 @@ async def fetch_magento(
         return StoreResult(store, [], ok=False, error=str(exc))
 
 
-# --- Max Distelsa: VTEX detrás de WAF -------------------------------------
+# --- Max Distelsa: Constructor.io -----------------------------------------
+#
+# Max ya no expone su búsqueda pública como VTEX desde www.max.com.gt. El
+# frontend Next.js consulta Constructor.io con una llave pública y la respuesta
+# trae nombre, URL, imagen, precio final y stock. Esto es más estable que
+# renderizar el sitio con navegador porque es el mismo endpoint de búsqueda que
+# usa la página /search?q=...
+
+_MAX_CONSTRUCTOR_ENDPOINT = "https://ac.cnstrc.com/search"
+_MAX_CONSTRUCTOR_KEY = "key_5JqvLHPZsU80qkem"
+
+
+def _max_available(data: dict) -> int:
+    qty = data.get("salable_quantity")
+    if qty is not None:
+        try:
+            return int(float(qty))
+        except (TypeError, ValueError):
+            pass
+
+    for facet in data.get("facets") or []:
+        if facet.get("name") == "availability":
+            values = {str(v).upper() for v in facet.get("values") or []}
+            return 1 if "IN_STOCK" in values else 0
+    return 1
+
+
+def _parse_max_constructor(store: Store, payload: dict) -> list[Product]:
+    if not isinstance(payload, dict):
+        return []
+
+    products: list[Product] = []
+    for item in payload.get("response", {}).get("results") or []:
+        data = item.get("data") or {}
+        price = (
+            _as_price(data.get("final_price"))
+            or _as_price(data.get("special_price"))
+            or _as_price(data.get("price"))
+            or _as_price(data.get("regular_price"))
+        )
+        url = data.get("url")
+        if not url and data.get("url_key"):
+            url = f"https://{store.domain}/{data['url_key']}"
+        products.append(
+            Product(
+                store_key=store.key,
+                store_name=store.name,
+                name=item.get("value") or data.get("meta_title") or "—",
+                price=price,
+                available=_max_available(data),
+                url=url or "",
+                image=data.get("image_url"),
+            )
+        )
+    return products
+
+
+async def fetch_max_constructor(
+    client: httpx.AsyncClient,
+    store: Store,
+    query: str,
+    *,
+    timeout: int,
+    ttl_seconds: int,
+    use_cache: bool = True,
+) -> StoreResult:
+    ck = cache.make_key(store.key, query)
+    if use_cache:
+        cached = cache.get(ck, ttl_seconds)
+        if cached is not None:
+            return StoreResult(store, _parse_max_constructor(store, cached), ok=True)
+
+    url = f"{_MAX_CONSTRUCTOR_ENDPOINT}/{quote(query.strip(), safe='')}"
+    params = {
+        "key": _MAX_CONSTRUCTOR_KEY,
+        "i": "gt-compare",
+        "s": "1",
+        "c": "ciojs-client-2.65.0",
+        "num_results_per_page": "24",
+    }
+    try:
+        resp = await asyncio.wait_for(
+            client.get(url, params=params, headers=HEADERS), timeout=timeout
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if use_cache:
+            cache.set(ck, payload)
+        return StoreResult(store, _parse_max_constructor(store, payload), ok=True)
+    except asyncio.TimeoutError:
+        return StoreResult(store, [], ok=False, error="timeout")
+    except httpx.HTTPStatusError as exc:
+        logger.error("max constructor HTTP %s", exc.response.status_code)
+        return StoreResult(store, [], ok=False, error=f"HTTP {exc.response.status_code}")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("max constructor error: %s", exc)
+        return StoreResult(store, [], ok=False, error=str(exc))
+
+
+# --- Max Distelsa: VTEX detrás de WAF (fallback manual viejo) --------------
 #
 # El endpoint VTEX de Max funciona, pero Cloudflare/Akamai bloquea cualquier
 # request "limpio" con 403. La app móvil de Max NO pasa por el mismo challenge,

@@ -10,23 +10,23 @@ catálogo, sin autenticación).
 |-----------|-------------------|------------------------|--------|
 | `cemaco`     | Cemaco            | www.cemaco.com         | ✅ VTEX |
 | `walmart`    | Walmart Guatemala | www.walmart.com.gt     | ✅ VTEX |
+| `siman`      | Siman             | gt.siman.com           | ✅ VTEX |
+| `max`        | Max Distelsa      | www.max.com.gt         | ✅ Constructor.io (API) |
 | `curacao`    | La Curacao        | www.lacuracaonline.com | ✅ Magento (scraper HTML) |
 | `radioshack` | RadioShack        | www.radioshackla.com   | ✅ Magento (scraper HTML) |
 | `kemik`      | Kemik             | www.kemik.gt           | ✅ Next.js SSR (scraper HTML) |
 | `pricesmart` | PriceSmart        | www.pricesmart.com     | ✅ Bloomreach Discovery (API) |
-| `max`        | Max Distelsa      | www.max.com.gt         | ⛔ Bot-detection (ver abajo) |
 
-> **6 tiendas activas.** Cada plataforma se maneja distinto:
-> - **VTEX** (Cemaco, Walmart): API pública de catálogo.
+> **8 tiendas activas.** Cada plataforma se maneja distinto:
+> - **VTEX** (Cemaco, Walmart, Siman): API pública de catálogo.
 > - **Magento** (La Curacao, RadioShack — Grupo Unicomer): scraping del HTML de
 >   `/guatemala/search/{q}` (`scraper.fetch_magento`).
 > - **Next.js SSR** (Kemik): scraping del HTML de `/search?query={q}`
 >   (`scraper.fetch_kemik`).
 > - **Bloomreach Discovery** (PriceSmart): API pública `core.dxpapi.com` con el
 >   `fl` correcto (`scraper.fetch_pricesmart`).
->
-> Solo Max queda deshabilitada (ver
-> [Tiendas bloqueadas](#bot-detection--tiendas-bloqueadas)).
+> - **Constructor.io** (Max): API pública usada por `/search?q=...`
+>   (`scraper.fetch_max_constructor`).
 
 ## Instalación
 
@@ -102,22 +102,11 @@ El cliente ya envía un `User-Agent` de navegador para mitigarlo.
 
 **Estado verificado (junio 2026):**
 
-- **Max Distelsa** (`www.max.com.gt`): el WAF responde **HTTP 403** con una
-  página de challenge (Cloudflare/Akamai) en **todos** los endpoints probados
-  (catalog_system, intelligent-search, graphql) y también con User-Agent de app
-  móvil (`okhttp`). El bloqueo es en el edge: **no depende del path ni del UA**,
-  así que un swap server-side no lo evade. Rutas viables, en orden de
-  eficiencia:
-  1. **Intercept de app móvil** (recomendado): capturar con Proxyman/mitmproxy
-     el endpoint real y los headers exactos que usa la app de Max en un
-     dispositivo real (incluye el cookie/token `cf_clearance` del device).
-     Pegarlos en `~/.gt-compare/config.yaml` bajo `max_headers` (ver scaffold en
-     `gt_compare/scraper.py`). Da requests rápidos y estables.
-  2. **Playwright + Chromium headless**: pasa el challenge comportándose como
-     navegador real. Robusto pero cada búsqueda tarda 3-5s y consume más RAM.
+- **Max Distelsa** (`www.max.com.gt`): los endpoints VTEX viejos siguen sin ser
+  la ruta correcta para esta app, pero la búsqueda pública actual corre por
+  Constructor.io y devuelve precio, stock, imagen y URL. Implementado en
+  `scraper.fetch_max_constructor` y habilitado por defecto.
 
-  Deshabilitada en `stores.py`. Puedes forzar el intento con
-  `gt-compare search "..." --store max`.
 ### PriceSmart — resuelta (Bloomreach Discovery)
 
 PriceSmart (Nuxt) usa **Bloomreach Discovery** para búsqueda Y precios. El precio
