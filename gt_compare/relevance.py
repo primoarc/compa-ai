@@ -56,6 +56,7 @@ _SYN_GROUPS: list[set[str]] = [
     {"naranja", "orange"},
     {"pelo", "cabello", "cabellos", "hair"},
     {"secadora", "secadoras", "secador", "secadores", "secado", "dryer"},
+    {"alisadora", "alisadoras", "alisador", "alisadores", "straightener"},
     {"ps5", "playstation5"},
     {"playstation", "play", "ps"},
     {"perro", "perros", "canino", "caninos", "canina", "caninas"},
@@ -76,6 +77,17 @@ _ALIAS_GROUPS: list[tuple[str, ...]] = [
         "secador de cabello",
         "secador para cabello",
         "hair dryer",
+    ),
+    (
+        "plancha de pelo",
+        "plancha de cabello",
+        "plancha para cabello",
+        "plancha alisadora",
+        "alisadora de cabello",
+        "alisador de cabello",
+        "alisadora",
+        "alisador",
+        "hair straightener",
     ),
     (
         "ps5",
@@ -197,6 +209,7 @@ _ACCESSORY = {
     "dualsense", "headset", "audifono", "audifonos", "portal", "remote",
     "player", "visor", "vr", "vr2",
     "disco", "unidad", "lector", "libro", "libros", "receta", "recetas",
+    "crema", "shampoo", "acondicionador", "tratamiento", "spray", "gel",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -268,6 +281,7 @@ def _alias_token_set(anchor: str) -> set[tuple[str, ...]]:
 
 _CONSOLE_ALIAS_TOKENS = _alias_token_set("ps5")
 _HAIR_DRYER_ALIAS_TOKENS = _alias_token_set("secadora de pelo")
+_HAIR_STRAIGHTENER_ALIAS_TOKENS = _alias_token_set("plancha de pelo")
 _PET_TREAT_ALIAS_TOKENS = _alias_token_set("treats para perro")
 _PET_FOOD_ALIAS_TOKENS = (
     _alias_token_set("comida para perro") | _alias_token_set("comida para gato")
@@ -351,6 +365,7 @@ def _allows_for_phrase(query: str) -> bool:
     base = tuple(_content_tokens(query))
     return (
         base in _HAIR_DRYER_ALIAS_TOKENS
+        or base in _HAIR_STRAIGHTENER_ALIAS_TOKENS
         or base in _PET_TREAT_ALIAS_TOKENS
         or base in _PET_FOOD_ALIAS_TOKENS
     )
