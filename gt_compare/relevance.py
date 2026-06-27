@@ -291,6 +291,11 @@ _PET_FOOD_ALIAS_TOKENS = (
     _alias_token_set("comida para perro") | _alias_token_set("comida para gato")
 )
 
+_AIR_CONDITIONER_POSITIVE = re.compile(
+    r"\baire(?:s)?\s+acondicionado(?:s)?\b|\bair\s+conditioner\b|\bac\s+portatil\b|\bportable\s+ac\b",
+    re.I,
+)
+
 
 def _replace_once(
     seq: tuple[str, ...],
@@ -365,6 +370,23 @@ def _is_console_query(query: str) -> bool:
     return base in _CONSOLE_ALIAS_TOKENS
 
 
+def _is_air_conditioner_query(query: str) -> bool:
+    qtoks = set(_content_tokens(query))
+    return (
+        {"aire", "acondicionado"} <= qtoks
+        or {"air", "conditioner"} <= qtoks
+        or ("ac" in qtoks and bool(qtoks & {"portatil", "portable"}))
+    )
+
+
+def _air_conditioner_query_matches(query_toks: list[str], name_norm: str, name_toks: set[str]) -> bool:
+    if not _AIR_CONDITIONER_POSITIVE.search(name_norm):
+        return False
+    if "portatil" in query_toks or "portable" in query_toks:
+        return bool(name_toks & {"portatil", "portable"})
+    return True
+
+
 def _allows_for_phrase(query: str) -> bool:
     base = tuple(_content_tokens(query))
     return (
@@ -433,6 +455,8 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
 
     original_qtoks = _content_tokens(query)
     if _plan_excludes_match(plan, name_norm, name_toks, original_qtoks):
+        return False
+    if _is_air_conditioner_query(query) and not _air_conditioner_query_matches(original_qtoks, name_norm, name_toks):
         return False
 
     query_wants_accessory = any(t in _ACCESSORY for t in original_qtoks)

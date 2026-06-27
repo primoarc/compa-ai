@@ -20,7 +20,7 @@ from . import cache, relevance
 logger = logging.getLogger("gt_compare")
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-DEFAULT_MODEL = "gpt-5.5"
+DEFAULT_MODEL = "gpt-5-nano"
 PLAN_VERSION = "query-plan-v2"
 PLAN_TTL_SECONDS = int(os.getenv("GT_COMPARE_PLAN_CACHE_SECONDS", str(30 * 24 * 60 * 60)))
 

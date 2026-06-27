@@ -104,7 +104,7 @@ vercel --prod
 Variables:
 
 - `OPENAI_API_KEY`: habilita el planner.
-- `OPENAI_MODEL`: opcional; default `gpt-5.5`.
+- `OPENAI_MODEL`: opcional; default `gpt-5-nano` para mantener bajo el costo.
 - `GT_COMPARE_DISABLE_OPENAI=1`: apaga OpenAI y usa solo aliases locales.
 - `GT_COMPARE_PLAN_CACHE_SECONDS`: TTL del plan normalizado; default 30 días.
 
@@ -134,7 +134,9 @@ La API web devuelve `planner: "openai"` o `planner: "local"` y
   con solo la primera palabra del query.
 - **Query planner**: si `OPENAI_API_KEY` existe, primero se genera un plan
   estructurado con aliases, grupos requeridos y exclusiones; el plan se cachea
-  y se usa para consultar tiendas y filtrar títulos.
+  y se usa para consultar tiendas y filtrar títulos. Las páginas SEO
+  pre-renderizadas usan el planner local para no gastar tokens cuando Google
+  u otros crawlers las visitan.
 - **Logs**: los errores se escriben en `~/.gt-compare/errors.log` y solo se
   muestran en pantalla con `--verbose`.
 
