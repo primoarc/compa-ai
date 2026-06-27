@@ -36,6 +36,12 @@ _SYN_GROUPS: list[set[str]] = [
     {"secadora", "secadoras", "secador", "secadores", "secado", "dryer"},
     {"ps5", "playstation5"},
     {"playstation", "play", "ps"},
+    {"perro", "perros", "canino", "caninos", "canina", "caninas"},
+    {
+        "treat", "treats", "premio", "premios", "snack", "snacks",
+        "golosina", "golosinas", "bocadillo", "bocadillos",
+        "galleta", "galletas",
+    },
 ]
 
 # Equivalencias de intención para frases completas. Se usan tanto para filtrar
@@ -58,6 +64,20 @@ _ALIAS_GROUPS: list[tuple[str, ...]] = [
         "consola ps5",
         "consola playstation 5",
         "sony ps5",
+    ),
+    (
+        "treats para perro",
+        "treats de perro",
+        "premios para perro",
+        "premios para perros",
+        "snacks para perro",
+        "snacks para perros",
+        "golosinas para perro",
+        "golosinas para perros",
+        "galletas para perro",
+        "galletas para perros",
+        "bocadillos para perro",
+        "bocadillos para perros",
     ),
 ]
 
@@ -134,6 +154,8 @@ _ALIAS_TOKEN_GROUPS: list[list[tuple[str, ...]]] = [
     _alias_tokens(group) for group in _ALIAS_GROUPS
 ]
 _CONSOLE_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[1])
+_HAIR_DRYER_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[0])
+_PET_TREAT_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[2])
 
 
 def _replace_once(
@@ -209,6 +231,11 @@ def _is_console_query(query: str) -> bool:
     return base in _CONSOLE_ALIAS_TOKENS
 
 
+def _allows_for_phrase(query: str) -> bool:
+    base = tuple(_content_tokens(query))
+    return base in _HAIR_DRYER_ALIAS_TOKENS or base in _PET_TREAT_ALIAS_TOKENS
+
+
 def is_relevant(query: str, name: str) -> bool:
     """¿El producto `name` coincide con la intención de `query`?"""
     qvariants = query_token_variants(query)
@@ -219,6 +246,7 @@ def is_relevant(query: str, name: str) -> bool:
 
     original_qtoks = _content_tokens(query)
     query_wants_accessory = any(t in _ACCESSORY for t in original_qtoks)
+    allows_for_phrase = _allows_for_phrase(query)
     if not query_wants_accessory:
         if _ACCESSORY & name_toks:
             return False
@@ -233,7 +261,7 @@ def is_relevant(query: str, name: str) -> bool:
                     accessory_for_query = (
                         rf"\bpara\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}"
                     )
-                    if re.search(accessory_for_query, name_norm):
+                    if not allows_for_phrase and re.search(accessory_for_query, name_norm):
                         return False
 
     if _is_console_query(query) and not query_wants_accessory:
