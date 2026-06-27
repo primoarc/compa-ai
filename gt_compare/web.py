@@ -9,14 +9,17 @@ Requiere los extras web:  pip install -e ".[web]"
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 import html
 import json
+import os
 from pathlib import Path
+import time
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 from . import planner, relevance, vtex
@@ -33,6 +36,15 @@ TIMEOUT = 8
 MAX_ITEMS = 24  # tope de productos por tienda que devolvemos al front
 
 SITE_URL = "https://gt-compare.vercel.app"
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_PER_MINUTE = int(os.getenv("GT_COMPARE_RATE_LIMIT_PER_MINUTE", "80"))
+SEARCH_LOG_PATH = Path(
+    os.getenv(
+        "GT_COMPARE_SEARCH_LOG",
+        "/tmp/gt-compare-searches.jsonl" if os.getenv("VERCEL") else str(Path.home() / ".gt-compare" / "searches.jsonl"),
+    )
+)
+_RATE_BUCKETS: dict[str, list[float]] = {}
 
 
 @dataclass(frozen=True)
@@ -171,6 +183,13 @@ SEO_PAGES: list[SeoPage] = [
         "Comparar precios de comida para perro",
         "Compara alimento, concentrado y comida para perro disponible en Guatemala.",
     ),
+    SeoPage(
+        "owala-guatemala",
+        "owala",
+        "Precios de Owala en Guatemala | Compa AI",
+        "Precios de Owala en Guatemala",
+        "Compara botellas y vasos Owala disponibles en tiendas de Guatemala.",
+    ),
 ]
 
 SEO_BY_SLUG = {page.slug: page for page in SEO_PAGES}
@@ -186,21 +205,47 @@ def _prod_dict(p) -> dict:
     }
 
 
+def _sort_key(p) -> tuple[bool, float]:
+    """Primero disponible; después, menor precio."""
+    return (not (getattr(p, "available", 0) > 0), float(getattr(p, "price", None) or float("inf")))
+
+
+def _row_sort_key(row: dict) -> tuple[bool, bool, float]:
+    return (not row["ok"], not bool(row.get("available")), float(row.get("price") or float("inf")))
+
+
 def _best_per_store(query: str, results: list[vtex.StoreResult], plan=None) -> list[dict]:
     """Una fila por tienda con su producto más barato + todos los relevantes."""
     rows: list[dict] = []
     for res in results:
-        rel = relevance.relevant_products(query, res.products, plan=plan) if res.ok else []
-        rel.sort(key=lambda x: x.price)  # type: ignore[arg-type]
-        if rel:
-            items = [_prod_dict(p) for p in rel[:MAX_ITEMS]]
+        relevant_all = [
+            p for p in res.products
+            if res.ok and relevance.is_relevant(query, p.name, plan=plan)
+        ]
+        priced = [
+            p for p in relevant_all
+            if getattr(p, "price", None) and p.price > 0
+        ]
+        priced.sort(key=_sort_key)
+        if priced:
+            items = [_prod_dict(p) for p in priced[:MAX_ITEMS]]
             rows.append({
                 "store": res.store.name,
                 "store_key": res.store.key,
                 "ok": True,
-                "count": len(rel),
+                "count": len(priced),
                 "items": items,
                 **items[0],  # el más barato como cabecera de la fila
+            })
+        elif relevant_all:
+            rows.append({
+                "store": res.store.name,
+                "store_key": res.store.key,
+                "ok": False,
+                "error": "productos encontrados sin precio público",
+                "found_without_price": True,
+                "count": len(relevant_all),
+                "items": [_prod_dict(p) for p in relevant_all[:MAX_ITEMS]],
             })
         else:
             # distinguir "tienda falló" de "sin coincidencia relevante"
@@ -216,8 +261,44 @@ def _best_per_store(query: str, results: list[vtex.StoreResult], plan=None) -> l
                 "ok": False,
                 "error": err,
             })
-    rows.sort(key=lambda r: (not r["ok"], r.get("price") or float("inf")))
+    rows.sort(key=_row_sort_key)
     return rows
+
+
+def _client_key(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",", 1)[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate_limit(request: Request) -> None:
+    if RATE_LIMIT_PER_MINUTE <= 0:
+        return
+    now = time.time()
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+    key = _client_key(request)
+    hits = [ts for ts in _RATE_BUCKETS.get(key, []) if ts >= cutoff]
+    if len(hits) >= RATE_LIMIT_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="Demasiadas búsquedas. Probá de nuevo en un minuto.")
+    hits.append(now)
+    _RATE_BUCKETS[key] = hits
+
+
+def _log_search(q: str, store: str | None, rows: list[dict], cheapest: str | None) -> None:
+    try:
+        SEARCH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts": int(time.time()),
+            "query": q,
+            "store": store,
+            "stores_with_price": sum(1 for row in rows if row.get("ok")),
+            "cheapest": cheapest,
+        }
+        with SEARCH_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 
 
 async def _search_rows(
@@ -235,11 +316,13 @@ async def _search_rows(
 
 
 @app.get("/api/search")
-async def api_search(q: str, store: Optional[str] = None) -> JSONResponse:
+async def api_search(request: Request, q: str, store: Optional[str] = None) -> JSONResponse:
+    _check_rate_limit(request)
     q = (q or "").strip()
     if not q:
         return JSONResponse({"query": q, "results": [], "cheapest": None})
     plan, rows, cheapest = await _search_rows(q, store=store)
+    _log_search(q, store, rows, cheapest)
     return JSONResponse({
         "query": q,
         "normalized_query": plan.canonical_query,
@@ -253,6 +336,29 @@ async def api_search(q: str, store: Optional[str] = None) -> JSONResponse:
 async def api_stores() -> JSONResponse:
     return JSONResponse([
         {"key": s.key, "name": s.name} for s in load_stores()
+    ])
+
+
+@app.get("/api/popular")
+async def api_popular(limit: int = 12) -> JSONResponse:
+    counter: Counter[str] = Counter()
+    try:
+        with SEARCH_LOG_PATH.open(encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                query = " ".join(str(item.get("query") or "").lower().split())
+                if query:
+                    counter[query] += 1
+    except OSError:
+        return JSONResponse([])
+
+    capped = max(1, min(limit, 50))
+    return JSONResponse([
+        {"query": query, "count": count}
+        for query, count in counter.most_common(capped)
     ])
 
 
@@ -374,7 +480,7 @@ def _seo_page_html(page: SeoPage, rows: list[dict], cheapest: str | None, plan_s
         for row in fail
     )
     best_copy = (
-        f'El precio más bajo encontrado fue <strong>{_money(best.get("price"))}</strong> en <strong>{_e(best.get("store"))}</strong>.'
+        f'El precio más bajo con precio público fue <strong>{_money(best.get("price"))}</strong> en <strong>{_e(best.get("store"))}</strong>.'
         if best else
         "No encontramos productos relevantes con precio en las tiendas consultadas."
     )
@@ -427,7 +533,7 @@ ul{{color:#a7acc4}}footer{{margin-top:44px;color:#8b8fa6;font-size:13px}}@media(
     <h2>Más comparaciones populares</h2>
     <div class="links">{related}</div>
   </section>
-  <footer>Compa AI compara precios públicos de tiendas en Guatemala. Los precios pueden cambiar al abrir la tienda.</footer>
+  <footer>Compa AI compara precios públicos de tiendas en Guatemala. Los precios pueden cambiar al abrir la tienda. En PriceSmart el precio y disponibilidad pueden variar por club.</footer>
 </main>
 </body>
 </html>"""
@@ -437,13 +543,14 @@ def _seo_result_card(row: dict, idx: int, is_best: bool) -> str:
     image = row.get("image") or ""
     img = f'<img src="{_e(image)}" alt="{_e(row.get("name"))}" loading="lazy">' if image else '<div></div>'
     badge = '<span class="badge">MÁS BARATO</span>' if is_best else ""
+    price_note = " · puede variar por club" if row.get("store_key") == "pricesmart" else ""
     return f"""<a class="card {'best' if is_best else ''}" href="{_e(row.get("url"))}" rel="nofollow noopener" target="_blank">
   <div class="rank">{idx + 1}</div>
   {img}
   <div>
     <div class="store">{_e(row.get("store"))}</div>
     <div class="name">{_e(row.get("name"))}</div>
-    <div class="stock">{'Disponible' if row.get('available') else 'Agotado'} · {int(row.get('count') or 1)} relevantes</div>
+    <div class="stock">{'Disponible' if row.get('available') else 'Agotado'} · {int(row.get('count') or 1)} relevantes{price_note}</div>
   </div>
   <div class="price">{_money(row.get("price"))}<br>{badge}</div>
 </a>"""

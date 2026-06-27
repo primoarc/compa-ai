@@ -147,6 +147,7 @@
     background:var(--green);color:#04210f;padding:3px 8px;border-radius:6px}
   .stock{font-size:11px;color:var(--muted);margin-top:5px}
   .stock.no{color:var(--amber)}
+  .stock.note{color:#a7acc4}
 
   .card.fail{opacity:.6;animation:none}
   .card.fail .pname{color:var(--muted)}
@@ -216,6 +217,7 @@
       <a href="/comparar/freidoras-de-aire-guatemala">Freidoras de aire Guatemala</a>
       <a href="/comparar/secadoras-de-pelo-guatemala">Secadoras de pelo Guatemala</a>
       <a href="/comparar/planchas-de-pelo-guatemala">Planchas de pelo Guatemala</a>
+      <a href="/comparar/owala-guatemala">Precios Owala Guatemala</a>
     </div>
   </section>
 
@@ -282,16 +284,17 @@ function viewByStore(ok, cheapestKey){
   ok.forEach((r,i)=>{
     const best = r.store_key === cheapestKey;
     const extra = (r.items||[]).length - 1;
+    const storeNote = r.store_key === 'pricesmart' ? ' · puede variar por club' : '';
     h += `<a class="card ${best?'best':''}" href="${esc(r.url)}" target="_blank" style="animation-delay:${i*40}ms">
       <div class="rank">${i+1}</div>${imgTag(r.image,'thumb')}
       <div class="info"><div class="store">${esc(r.store)}</div><div class="pname">${esc(r.name)}</div>
-        <div class="stock ${r.available?'':'no'}">${r.available?'Disponible':'Agotado'}${r.count>1?` · ${r.count} relevantes`:''}</div></div>
+        <div class="stock ${r.available?'':'no'}">${r.available?'Disponible':'Agotado'}${r.count>1?` · ${r.count} relevantes`:''}${storeNote}</div></div>
       <div class="right"><div class="price">${fmt(r.price)}</div>${best?'<div class="badge">MÁS BARATO</div>':''}</div>
     </a>`;
     if(extra>0){
       const subs = (r.items||[]).slice(1).map(p=>
         `<a class="subrow" href="${esc(p.url)}" target="_blank"><span class="sname">${esc(p.name)}</span><span class="sprice">${fmt(p.price)}</span></a>`).join('');
-      h += `<button class="more" data-store="${r.store_key}">+ ${extra} más en ${esc(r.store)} ▾</button>
+      h += `<button class="more" data-store="${r.store_key}">Ver ${extra} resultado(s) más de ${esc(r.store)} ▾</button>
             <div class="sub" id="sub-${r.store_key}" style="display:none">${subs}</div>`;
     }
   });
@@ -302,7 +305,10 @@ function viewByStore(ok, cheapestKey){
 function viewAll(ok){
   const flat = [];
   ok.forEach(r => (r.items||[]).forEach(p => flat.push({...p, store:r.store})));
-  flat.sort((a,b)=>a.price-b.price);
+  flat.sort((a,b)=>{
+    if(Boolean(a.available) !== Boolean(b.available)) return a.available ? -1 : 1;
+    return a.price-b.price;
+  });
   const shown = flat.slice(0, shownAll);
   let h = '<div class="results">';
   shown.forEach((p,i)=>{
@@ -329,8 +335,13 @@ function render(data){
   html += view==='all' ? viewAll(ok) : viewByStore(ok, data.cheapest);
   if(fail.length){
     html += '<div class="results" style="margin-top:12px">';
-    fail.forEach(r=>{ html += `<div class="card fail"><div class="rank">·</div><div class="thumb ph">×</div>
-      <div class="info"><div class="store">${esc(r.store)}</div><div class="pname">No disponible (${esc(r.error)})</div></div></div>`; });
+    fail.forEach(r=>{
+      const msg = r.found_without_price
+        ? `Producto encontrado, pero sin precio público${r.count?` · ${r.count} relevante(s)`:''}`
+        : `No disponible (${esc(r.error)})`;
+      html += `<div class="card fail"><div class="rank">·</div><div class="thumb ph">×</div>
+      <div class="info"><div class="store">${esc(r.store)}</div><div class="pname">${msg}</div></div></div>`;
+    });
     html += '</div>';
   }
   out.innerHTML = html;
@@ -354,7 +365,12 @@ async function search(){
   goEl.disabled = true; goEl.textContent = '…';
   try{
     const url = '/api/search?q=' + encodeURIComponent(q) + (activeStore?('&store='+activeStore):'');
-    const data = await (await fetch(url)).json();
+    const res = await fetch(url);
+    if(res.status === 429){
+      out.innerHTML = `<div class="empty">Muchas búsquedas seguidas. Probá otra vez en un minuto.</div>`;
+      return;
+    }
+    const data = await res.json();
     render(data);
   }catch(e){
     out.innerHTML = `<div class="empty">Error consultando las tiendas.</div>`;
