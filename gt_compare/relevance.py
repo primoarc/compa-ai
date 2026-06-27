@@ -290,6 +290,7 @@ _PET_TREAT_ALIAS_TOKENS = _alias_token_set("treats para perro")
 _PET_FOOD_ALIAS_TOKENS = (
     _alias_token_set("comida para perro") | _alias_token_set("comida para gato")
 )
+_BRAND_QUERY_TOKENS = {"owala"}
 
 _AIR_CONDITIONER_POSITIVE = re.compile(
     r"\baire(?:s)?\s+acondicionado(?:s)?\b|\bair\s+conditioner\b|\bac\s+portatil\b|\bportable\s+ac\b",
@@ -379,6 +380,11 @@ def _is_air_conditioner_query(query: str) -> bool:
     )
 
 
+def _is_brand_query(query: str) -> bool:
+    qtoks = _content_tokens(query)
+    return len(qtoks) == 1 and qtoks[0] in _BRAND_QUERY_TOKENS
+
+
 def _air_conditioner_query_matches(query_toks: list[str], name_norm: str, name_toks: set[str]) -> bool:
     if not _AIR_CONDITIONER_POSITIVE.search(name_norm):
         return False
@@ -459,7 +465,7 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
     if _is_air_conditioner_query(query) and not _air_conditioner_query_matches(original_qtoks, name_norm, name_toks):
         return False
 
-    query_wants_accessory = any(t in _ACCESSORY for t in original_qtoks)
+    query_wants_accessory = any(t in _ACCESSORY for t in original_qtoks) or _is_brand_query(query)
     allows_for_phrase = _allows_for_phrase(query)
     if not query_wants_accessory:
         if _ACCESSORY & name_toks:

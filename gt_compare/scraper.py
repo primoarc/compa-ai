@@ -223,30 +223,61 @@ _PS_PRICE_F = f"price_{_PS_VIEW_ID}_{_PS_CLUB}"
 _PS_ORIG_F = f"original_price_without_saving_{_PS_VIEW_ID}_{_PS_CLUB}"
 _PS_INV_F = f"inventory_{_PS_VIEW_ID}_{_PS_CLUB}"
 _PS_FL = (
-    f"pid,title,brand,slug,thumb_image,currency,fractionDigits,"
+    f"pid,title,brand,slug,thumb_image,currency,fractionDigits,master_sku,variants,"
     f"{_PS_PRICE_F},{_PS_ORIG_F},{_PS_INV_F}"
 )
+
+
+def _ps_first_scalar(value):
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
+def _ps_variant(d: dict) -> dict:
+    master = d.get("master_sku")
+    variants = d.get("variants") or []
+    if master:
+        for variant in variants:
+            if variant.get("skuid") == master:
+                return variant
+    for variant in variants:
+        if variant.get(_PS_PRICE_F) is not None:
+            return variant
+    return {}
+
+
+def _ps_price(d: dict) -> float | None:
+    raw = d.get(_PS_PRICE_F)
+    if raw is None:
+        raw = _ps_first_scalar(_ps_variant(d).get(_PS_PRICE_F))
+    if raw is None:
+        return None
+    digits = int(d.get("fractionDigits") or 2)
+    return round(float(raw) / (10 ** digits), 2)
+
+
+def _ps_available(d: dict) -> int:
+    raw = d.get(_PS_INV_F)
+    if raw is None:
+        raw = _ps_first_scalar(_ps_variant(d).get(_PS_INV_F))
+    return 1 if str(raw or "").lower() == "in stock" else 0
 
 
 def _parse_pricesmart(store: Store, payload: dict) -> list[Product]:
     products: list[Product] = []
     for d in payload.get("response", {}).get("docs", []):
-        raw = d.get(_PS_PRICE_F)
-        if raw is None:
-            price = None
-        else:
-            # fractionDigits indica los decimales (centavos). Default 2.
-            digits = int(d.get("fractionDigits") or 2)
-            price = round(float(raw) / (10 ** digits), 2)
+        price = _ps_price(d)
         slug = d.get("slug") or d.get("pid", "")
-        url = f"https://{store.domain}/es-gt/producto/{slug}/{d.get('pid','')}"
+        sku = d.get("master_sku") or d.get("pid", "")
+        url = f"https://{store.domain}/es-gt/producto/{slug}/{sku}"
         products.append(
             Product(
                 store_key=store.key,
                 store_name=store.name,
                 name=d.get("title", "—"),
                 price=price,
-                available=1 if str(d.get(_PS_INV_F, "")).lower() == "in stock" else 0,
+                available=_ps_available(d),
                 url=url,
                 image=d.get("thumb_image"),
             )
