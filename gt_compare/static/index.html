@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compa AI · precios Guatemala</title>
+<meta name="description" content="Compara precios en tiendas de Guatemala. Encuentra televisores, lavadoras, taladros, laptops, cafeteras y más al mejor precio.">
+<link rel="canonical" href="https://gt-compare.vercel.app/">
 <style>
   :root{
     --bg:#0a0b12; --bg2:#11131f; --card:#161827; --card2:#1c1f33;
@@ -150,6 +152,12 @@
   .card.fail .pname{color:var(--muted)}
 
   .empty{text-align:center;color:var(--muted);padding:60px 0}
+  .seo-links{margin:34px 0 0;padding-top:20px;border-top:1px solid var(--line)}
+  .seo-links h2{font-size:18px;color:#fff;margin-bottom:12px}
+  .seo-grid{display:flex;flex-wrap:wrap;gap:9px}
+  .seo-grid a{background:var(--card);border:1px solid var(--line);color:#cbd5e1;text-decoration:none;
+    border-radius:999px;padding:8px 12px;font-size:13px;transition:.15s}
+  .seo-grid a:hover{border-color:var(--accent);color:#fff}
   .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);
     border-radius:50%;animation:spin .8s linear infinite;margin:50px auto}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -194,6 +202,22 @@
   <div class="chips" id="chips"></div>
 
   <div id="out"></div>
+
+  <section class="seo-links" aria-label="Comparaciones populares">
+    <h2>Comparaciones populares</h2>
+    <div class="seo-grid">
+      <a href="/comparar/televisores-samsung-guatemala">Precios televisores Samsung Guatemala</a>
+      <a href="/comparar/televisores-55-pulgadas-guatemala">Televisores 55 pulgadas Guatemala</a>
+      <a href="/comparar/lavadoras-guatemala">Comparar precios lavadoras Guatemala</a>
+      <a href="/comparar/lavadora-mabe-mas-barata-guatemala">Lavadora Mabe más barata Guatemala</a>
+      <a href="/comparar/taladro-dewalt-guatemala">Dónde comprar taladro DeWalt Guatemala</a>
+      <a href="/comparar/ps5-guatemala">Precios PS5 Guatemala</a>
+      <a href="/comparar/cafeteras-guatemala">Comparar cafeteras Guatemala</a>
+      <a href="/comparar/freidoras-de-aire-guatemala">Freidoras de aire Guatemala</a>
+      <a href="/comparar/secadoras-de-pelo-guatemala">Secadoras de pelo Guatemala</a>
+      <a href="/comparar/planchas-de-pelo-guatemala">Planchas de pelo Guatemala</a>
+    </div>
+  </section>
 
   <footer>Motor: el mismo CLI <code>gt-compare</code> · <span id="storeCount">tiendas</span> en paralelo</footer>
 </div>
