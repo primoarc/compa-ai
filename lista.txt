@@ -1,0 +1,4 @@
+# Un producto por línea. Las líneas que empiezan con # se ignoran.
+televisor samsung 65
+taladro dewalt
+licuadora oster
