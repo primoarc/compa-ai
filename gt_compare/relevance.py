@@ -32,6 +32,8 @@ _SYN_GROUPS: list[set[str]] = [
     {"microondas", "microwave"},
     {"congelador", "freezer"},
     {"aspiradora", "vacuum"},
+    {"pelo", "cabello", "cabellos", "hair"},
+    {"secadora", "secadoras", "secador", "secadores", "secado", "dryer"},
 ]
 
 # Términos de accesorio: si el query NO los pide, se excluyen del resultado
