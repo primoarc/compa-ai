@@ -21,7 +21,7 @@ logger = logging.getLogger("gt_compare")
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_MODEL = "gpt-5.5"
-PLAN_VERSION = "query-plan-v1"
+PLAN_VERSION = "query-plan-v2"
 PLAN_TTL_SECONDS = int(os.getenv("GT_COMPARE_PLAN_CACHE_SECONDS", str(30 * 24 * 60 * 60)))
 
 
@@ -218,16 +218,17 @@ Rules:
 - Put Spanish aliases first; include English only when common in product titles.
 - Do not add brands, sizes, colors, genders, or models unless the user wrote them.
 - required_any_groups is a list of concept groups. For each group, a product title
-  should contain at least one term/phrase from the group. Use only essential
-  concepts likely to appear in titles; avoid over-constraining.
+  should contain at least one term/phrase from the group. Multi-concept searches
+  must keep the concepts separate so one broad word cannot match by itself.
 - exclude_terms are adjacent products, accessories, consumables, or meanings that
   should not match the user's intent.
 - For ambiguous one-word searches, be conservative and avoid aggressive excludes.
 
 Examples:
 - "plancha de pelo": search for "plancha de cabello", "plancha alisadora",
-  "alisadora de cabello"; require one of cabello/alisadora/alisador; exclude ropa,
-  vapor, cocina, aluminio, crema, shampoo, tratamiento.
+  "alisadora de cabello"; required_any_groups should be
+  [["plancha", "alisadora", "alisador"], ["cabello", "pelo"]]; exclude ropa,
+  vapor, cocina, aluminio, crema, shampoo, tratamiento, gancho.
 - "ps5": search for "ps5", "playstation 5", "consola ps5"; require ps5/playstation
   and consola/console; exclude control, juego, headset, funda.
 - "treats para perro": search for premios/snacks/golosinas para perro; require one

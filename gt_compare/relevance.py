@@ -209,6 +209,7 @@ _ACCESSORY = {
     "player", "visor", "vr", "vr2",
     "disco", "unidad", "lector", "libro", "libros", "receta", "recetas",
     "crema", "shampoo", "acondicionador", "tratamiento", "spray", "gel",
+    "gancho", "ganchos", "pinza", "pinzas", "peine", "peines", "cepillo", "cepillos",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -402,9 +403,15 @@ def _plan_excludes_match(plan, name_norm: str, name_toks: set[str], query_toks: 
     return False
 
 
-def _plan_required_matches(plan, name_norm: str, name_toks: set[str]) -> bool:
+def _plan_required_matches(query: str, plan, name_norm: str, name_toks: set[str]) -> bool:
     groups = _plan_attr(plan, "required_any_groups", []) or []
     if not groups:
+        return False
+    # OpenAI puede generar un grupo demasiado amplio ("cabello") para una
+    # búsqueda con varios conceptos ("plancha de pelo"). En esos casos no
+    # dejamos que el plan amplíe la relevancia salvo que haya al menos dos
+    # grupos independientes que el título deba satisfacer.
+    if len(_content_tokens(query)) >= 2 and len(groups) < 2:
         return False
     for group in groups:
         if not any(_term_matches(term, name_norm, name_toks) for term in group):
@@ -453,7 +460,7 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
     ):
         return True
 
-    return _plan_required_matches(plan, name_norm, name_toks)
+    return _plan_required_matches(query, plan, name_norm, name_toks)
 
 
 def _variant_matches(qtoks: tuple[str, ...], name_norm: str, name_toks: set[str]) -> bool:
