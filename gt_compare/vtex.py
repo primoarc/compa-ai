@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 import httpx
 
-from . import cache
+from . import cache, relevance
 from .stores import Store
 
 logger = logging.getLogger("gt_compare")
@@ -62,6 +62,46 @@ class StoreResult:
     products: list[Product]
     ok: bool
     error: str | None = None
+
+
+def _dedupe_products(products: list[Product]) -> list[Product]:
+    deduped: list[Product] = []
+    seen: set[tuple[str, str, str]] = set()
+    for p in products:
+        key = (
+            p.store_key,
+            p.url.strip().lower() if p.url else p.name.strip().lower(),
+            str(p.price or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(p)
+    return deduped
+
+
+async def _search_with_aliases(
+    fetcher,
+    client,
+    store: Store,
+    query: str,
+    **kw,
+) -> StoreResult:
+    queries = relevance.search_queries(query, limit=4)
+    if len(queries) <= 1:
+        return await fetcher(client, store, query, **kw)
+
+    results = await asyncio.gather(
+        *(fetcher(client, store, q, **kw) for q in queries)
+    )
+    ok_results = [r for r in results if r.ok]
+    if not ok_results:
+        return results[0]
+
+    products: list[Product] = []
+    for r in ok_results:
+        products.extend(r.products)
+    return StoreResult(store, _dedupe_products(products), ok=True)
 
 
 def _normalize_price(raw: float | int | None) -> float | None:
@@ -178,15 +218,15 @@ async def search_all(
                 # Max es VTEX pero está tras WAF: si el usuario capturó headers
                 # de la app móvil (max_headers), enruta por el fetch dedicado.
                 if s.key == "max" and has_max_headers:
-                    tasks.append(scraper.fetch_max(client, s, query, **kw))
+                    tasks.append(_search_with_aliases(scraper.fetch_max, client, s, query, **kw))
                 else:
-                    tasks.append(search_store(client, s, query, **kw))
+                    tasks.append(_search_with_aliases(search_store, client, s, query, **kw))
             elif s.kind == "magento":
-                tasks.append(scraper.fetch_magento(client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_magento, client, s, query, **kw))
             elif s.kind == "kemik":
-                tasks.append(scraper.fetch_kemik(client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_kemik, client, s, query, **kw))
             elif s.kind == "pricesmart":
-                tasks.append(scraper.fetch_pricesmart(client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.fetch_pricesmart, client, s, query, **kw))
             else:
-                tasks.append(scraper.search_store(client, s, query, **kw))
+                tasks.append(_search_with_aliases(scraper.search_store, client, s, query, **kw))
         return await asyncio.gather(*tasks)

@@ -34,6 +34,31 @@ _SYN_GROUPS: list[set[str]] = [
     {"aspiradora", "vacuum"},
     {"pelo", "cabello", "cabellos", "hair"},
     {"secadora", "secadoras", "secador", "secadores", "secado", "dryer"},
+    {"ps5", "playstation5"},
+    {"playstation", "play", "ps"},
+]
+
+# Equivalencias de intención para frases completas. Se usan tanto para filtrar
+# resultados como para probar queries alternos en las tiendas.
+_ALIAS_GROUPS: list[tuple[str, ...]] = [
+    (
+        "secadora de pelo",
+        "secadora de cabello",
+        "secador de pelo",
+        "secador de cabello",
+        "secador para cabello",
+        "hair dryer",
+    ),
+    (
+        "ps5",
+        "playstation 5",
+        "play station 5",
+        "playstation5",
+        "play 5",
+        "consola ps5",
+        "consola playstation 5",
+        "sony ps5",
+    ),
 ]
 
 # Términos de accesorio: si el query NO los pide, se excluyen del resultado
@@ -45,6 +70,10 @@ _ACCESSORY = {
     "kit", "convertidor", "extension", "regulador", "estuche", "mica",
     "tira", "luces", "iluminacion", "limpiador", "limpieza", "correa",
     "vaso", "jarra", "removedor", "cuchilla", "bolsa", "tapa", "soportes",
+    "juego", "juegos", "videojuego", "videojuegos", "game", "games",
+    "dualsense", "headset", "audifono", "audifonos", "portal", "remote",
+    "player", "visor", "vr", "vr2",
+    "disco", "unidad", "lector",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -70,6 +99,10 @@ def tokens(s: str) -> list[str]:
     return _TOKEN_RE.findall(normalize(s))
 
 
+def _content_tokens(s: str) -> list[str]:
+    return [t for t in tokens(s) if t not in _STOPWORDS]
+
+
 def _synonyms(token: str) -> set[str]:
     for group in _SYN_GROUPS:
         if token in group:
@@ -86,42 +119,149 @@ _STOPWORDS = {"de", "para", "con", "el", "la", "los", "las", "y", "o", "un", "un
               "pulgadas", "plg", "inch", "pulg"}
 
 
+def _alias_tokens(group: tuple[str, ...]) -> list[tuple[str, ...]]:
+    out: list[tuple[str, ...]] = []
+    seen: set[tuple[str, ...]] = set()
+    for alias in group:
+        item = tuple(_content_tokens(alias))
+        if item and item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+_ALIAS_TOKEN_GROUPS: list[list[tuple[str, ...]]] = [
+    _alias_tokens(group) for group in _ALIAS_GROUPS
+]
+_CONSOLE_ALIAS_TOKENS = set(_ALIAS_TOKEN_GROUPS[1])
+
+
+def _replace_once(
+    seq: tuple[str, ...],
+    old: tuple[str, ...],
+    new: tuple[str, ...],
+) -> tuple[str, ...] | None:
+    if not old:
+        return None
+    width = len(old)
+    for idx in range(0, len(seq) - width + 1):
+        if seq[idx:idx + width] == old:
+            return seq[:idx] + new + seq[idx + width:]
+    return None
+
+
+def query_token_variants(query: str, *, limit: int = 16) -> list[tuple[str, ...]]:
+    """Devuelve variantes tokenizadas del query usando aliases controlados."""
+    base = tuple(_content_tokens(query))
+    if not base:
+        return [()]
+
+    variants: list[tuple[str, ...]] = [base]
+    seen = {base}
+    for group in _ALIAS_TOKEN_GROUPS:
+        for current in list(variants):
+            for alias in group:
+                replaced = _replace_once(current, alias, alias)
+                if replaced is None:
+                    continue
+                for alternative in group:
+                    candidate = _replace_once(current, alias, alternative)
+                    if candidate and candidate not in seen:
+                        seen.add(candidate)
+                        variants.append(candidate)
+                        if len(variants) >= limit:
+                            return variants
+    return variants
+
+
+def search_queries(query: str, *, limit: int = 6) -> list[str]:
+    """Queries alternos para buscadores que no entienden abreviaturas."""
+    clean = " ".join(query.strip().split())
+    if not clean:
+        return []
+
+    out = [clean]
+    seen = {normalize(clean)}
+    base = tuple(_content_tokens(query))
+
+    for aliases, token_group in zip(_ALIAS_GROUPS, _ALIAS_TOKEN_GROUPS):
+        if base in token_group:
+            for alias in aliases:
+                if normalize(alias) not in seen:
+                    seen.add(normalize(alias))
+                    out.append(alias)
+                    if len(out) >= limit:
+                        return out
+            return out
+
+    for variant in query_token_variants(query):
+        text = " ".join(variant)
+        if text and normalize(text) not in seen:
+            seen.add(normalize(text))
+            out.append(text)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _is_console_query(query: str) -> bool:
+    base = tuple(_content_tokens(query))
+    return base in _CONSOLE_ALIAS_TOKENS
+
+
 def is_relevant(query: str, name: str) -> bool:
     """¿El producto `name` coincide con la intención de `query`?"""
-    qtoks = [t for t in tokens(query) if t not in _STOPWORDS]
-    if not qtoks:
+    qvariants = query_token_variants(query)
+    if not qvariants or not qvariants[0]:
         return True
     name_norm = normalize(name)
     name_toks = set(tokens(name))
 
-    query_wants_accessory = any(t in _ACCESSORY for t in qtoks)
+    original_qtoks = _content_tokens(query)
+    query_wants_accessory = any(t in _ACCESSORY for t in original_qtoks)
     if not query_wants_accessory:
         if _ACCESSORY & name_toks:
             return False
         # Regla general: "<algo> para <producto>" es un accesorio PARA el
         # producto, no el producto (Motor para Licuadora, Soporte para
         # Televisor, Organizador para Refrigeradora…).
-        for t in qtoks:
-            if _is_number(t):
-                continue
-            for syn in _synonyms(t):
-                if re.search(rf"\bpara\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}", name_norm):
-                    return False
+        for variant in qvariants:
+            for t in variant:
+                if _is_number(t):
+                    continue
+                for syn in _synonyms(t):
+                    accessory_for_query = (
+                        rf"\bpara\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}"
+                    )
+                    if re.search(accessory_for_query, name_norm):
+                        return False
 
+    if _is_console_query(query) and not query_wants_accessory:
+        if not ({"consola", "console"} & name_toks):
+            return False
+
+    return any(
+        _variant_matches(variant, name_norm, name_toks)
+        for variant in qvariants
+    )
+
+
+def _variant_matches(qtoks: tuple[str, ...], name_norm: str, name_toks: set[str]) -> bool:
     for t in qtoks:
         if _is_number(t):
             # número exacto, sin dígitos pegados ("55" no calza "5"/"550") y
             # que no sea una unidad como "50 ml" / "1200 w".
             if not re.search(rf"(?<!\d){re.escape(t)}(?!\d){_UNIT_AFTER}", name_norm):
                 return False
-        else:
-            group = _synonyms(t)
-            if name_toks & group:
-                continue
-            # marcas/palabras parciales: permitir como subcadena (samsung…)
-            if any(g in name_norm for g in group):
-                continue
-            return False
+            continue
+
+        group = _synonyms(t)
+        if name_toks & group:
+            continue
+        # marcas/palabras parciales: permitir como subcadena (samsung…)
+        if any(len(g) >= 5 and g in name_norm for g in group):
+            continue
+        return False
     return True
 
 
