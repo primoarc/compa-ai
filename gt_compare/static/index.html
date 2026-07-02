@@ -285,7 +285,7 @@ function viewByStore(ok, cheapestKey){
     const best = r.store_key === cheapestKey;
     const extra = (r.items||[]).length - 1;
     const storeNote = r.store_key === 'pricesmart' ? ' · puede variar por club' : '';
-    h += `<a class="card ${best?'best':''}" href="${esc(r.url)}" target="_blank" style="animation-delay:${i*40}ms">
+    h += `<a class="card ${best?'best':''}" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${i*40}ms">
       <div class="rank">${i+1}</div>${imgTag(r.image,'thumb')}
       <div class="info"><div class="store">${esc(r.store)}</div><div class="pname">${esc(r.name)}</div>
         <div class="stock ${r.available?'':'no'}">${r.available?'Disponible':'Agotado'}${r.count>1?` · ${r.count} relevantes`:''}${storeNote}</div></div>
@@ -293,7 +293,7 @@ function viewByStore(ok, cheapestKey){
     </a>`;
     if(extra>0){
       const subs = (r.items||[]).slice(1).map(p=>
-        `<a class="subrow" href="${esc(p.url)}" target="_blank"><span class="sname">${esc(p.name)}</span><span class="sprice">${fmt(p.price)}</span></a>`).join('');
+        `<a class="subrow" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer"><span class="sname">${esc(p.name)}</span><span class="sprice">${fmt(p.price)}</span></a>`).join('');
       h += `<button class="more" data-store="${r.store_key}">Ver ${extra} resultado(s) más de ${esc(r.store)} ▾</button>
             <div class="sub" id="sub-${r.store_key}" style="display:none">${subs}</div>`;
     }
@@ -313,7 +313,7 @@ function viewAll(ok){
   let h = '<div class="results">';
   shown.forEach((p,i)=>{
     const best = i===0;
-    h += `<a class="card ${best?'best':''}" href="${esc(p.url)}" target="_blank" style="animation-delay:${Math.min(i,15)*30}ms">
+    h += `<a class="card ${best?'best':''}" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${Math.min(i,15)*30}ms">
       <div class="rank">${i+1}</div>${imgTag(p.image,'thumb')}
       <div class="info"><div class="gstore">${esc(p.store)}</div><div class="pname">${esc(p.name)}</div>
         <div class="stock ${p.available?'':'no'}">${p.available?'Disponible':'Agotado'}</div></div>
