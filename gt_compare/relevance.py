@@ -214,6 +214,9 @@ _ACCESSORY = {
     "brocas", "punta", "puntas", "porta",
     "pad", "mousepad", "alfombra", "alfombras",
     "botella", "botellas", "burbujas", "minnie", "mickey",
+    "deflector", "deflectores", "escudo", "escudos", "cubierta", "cubiertas",
+    "manguera", "mangueras", "valvula", "valvulas", "sensor", "sensores",
+    "termostato", "termostatos", "instalacion", "mantenimiento", "limpieza",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -302,9 +305,26 @@ _OWALA_ACCESSORY_TOKENS = {
 }
 
 _AIR_CONDITIONER_POSITIVE = re.compile(
-    r"\baire(?:s)?\s+acondicionado(?:s)?\b|\bair\s+conditioner\b|\bac\s+portatil\b|\bportable\s+ac\b",
+    r"\baire(?:s)?\s+acondicionado(?:s)?\b|\bair\s+conditioner\b|\bac\s+portatil\b"
+    r"|\bportable\s+ac\b|\bmini\s*split\b",
     re.I,
 )
+
+# Accesorios propios de aires acondicionados (namespaced: solo se usan en la
+# rama de _is_air_conditioner_query, no en el set _ACCESSORY global, para no
+# afectar búsquedas no relacionadas con AC).
+_AC_ACCESSORY_EXTRA = {
+    "foam", "panel", "panels", "insulated", "insulation", "insulator",
+    "sealing", "weatherstrip", "weatherstripping", "strip", "strips",
+    "gasket", "gaskets", "hose", "hoses", "drain", "tubing", "tube", "tubes",
+    "bracket", "brackets", "cover", "covers",
+    "espray", "aerosol", "desinfectante", "desinfectantes", "limpiador",
+    "limpiadores", "llave", "llaves", "desconexion", "interruptor",
+    "interruptores", "breaker", "capacitor", "capacitores", "contactor",
+    "contactores", "refrigerante", "gas", "manometro", "manometros",
+    "ducto", "ductos", "ducteria", "marco", "marcos", "decorativo",
+    "decorativa", "rejilla", "rejillas", "salida", "salidas",
+}
 
 
 def _replace_once(
@@ -385,6 +405,12 @@ def _is_air_conditioner_query(query: str) -> bool:
     return (
         {"aire", "acondicionado"} <= qtoks
         or {"air", "conditioner"} <= qtoks
+        # "mini split" es el nombre común (y el que traen los propios títulos)
+        # de los aires acondicionados split; sin esto, palabras del resto del
+        # título (p.ej. "Filtro HD") disparan la exclusión de accesorios y el
+        # producto desaparece aunque sí sea un mini split.
+        or {"mini", "split"} <= qtoks
+        or "minisplit" in qtoks
         or ("ac" in qtoks and bool(qtoks & {"portatil", "portable"}))
     )
 
@@ -484,8 +510,31 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
     original_qtoks = _content_tokens(query)
     if _plan_excludes_match(plan, name_norm, name_toks, original_qtoks):
         return False
-    if _is_air_conditioner_query(query) and not _air_conditioner_query_matches(original_qtoks, name_norm, name_toks):
-        return False
+    is_ac_query = _is_air_conditioner_query(query)
+    if is_ac_query:
+        # Camino propio: exigir el literal "mini"+"split" en el título deja
+        # afuera unidades reales que el vendedor solo describe como "Aire
+        # Acondicionado ... 12,000 BTU" sin escribir "mini split". Aceptamos
+        # cualquier título AC-positivo y solo filtramos accesorios reales
+        # (por frase "para X" y por si el accesorio encabeza el título).
+        if not _air_conditioner_query_matches(original_qtoks, name_norm, name_toks):
+            return False
+        allows_for_phrase = _allows_for_phrase(query)
+        if not allows_for_phrase and re.search(
+            r"\bpara\s+(?:el\s+|la\s+|tu\s+)?(?:mini\s*split|aire(?:\s+acondicionado)?|a/?c)\b"
+            r"|\bpara\s+uso\s+con\s+(?:el\s+|la\s+|tu\s+)?(?:mini\s*split|aire(?:\s+acondicionado)?|a/?c)\b",
+            name_norm,
+        ):
+            return False
+        # Ventana más ancha que el chequeo genérico: los listados de
+        # accesorios de AC suelen anteponer "Marca + tipo de equipo
+        # compatible" antes de nombrar el accesorio en sí (p.ej. "BJADE'S
+        # Window Air Conditioner Side Insulated Foam Panel"). Namespaced a
+        # este branch para no afectar otras búsquedas (no es _ACCESSORY global).
+        head = tokens(name_norm)[:8]
+        if (_ACCESSORY | _AC_ACCESSORY_EXTRA) & set(head):
+            return False
+        return True
     if _is_owala_query(query):
         return _owala_query_matches(name_toks)
 

@@ -534,7 +534,7 @@ async def fetch_novex(
 _WC_ITEM = re.compile(r'<li\b[^>]*class="[^"]*\bproduct\b[^"]*"[^>]*>(.*?)</li>', re.I | re.S)
 _WC_LINK = re.compile(r'<a\b[^>]*href="([^"]+)"[^>]*woocommerce-loop-product__link[^>]*>', re.I | re.S)
 _WC_TITLE = re.compile(r'<h2\b[^>]*class="[^"]*woocommerce-loop-product__title[^"]*"[^>]*>(.*?)</h2>', re.I | re.S)
-_WC_AMOUNT = re.compile(r'woocommerce-Price-currencySymbol">\s*Q\s*</span>\s*([\d,]+(?:\.\d+)?)', re.I)
+_WC_AMOUNT = re.compile(r'woocommerce-Price-currencySymbol"[^>]*>\s*Q\s*</span>\s*([\d,]+(?:\.\d+)?)', re.I)
 _WC_IMG = re.compile(r'\b(?:data-lazy-src|src)="(https?://[^"]+)"', re.I)
 
 
