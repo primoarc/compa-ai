@@ -219,6 +219,21 @@ _ACCESSORY = {
     "termostato", "termostatos", "instalacion", "mantenimiento", "limpieza",
 }
 
+# "pantalla" es sinónimo de "televisor" (real: "Pantalla Samsung 75\" LED"),
+# pero también aparece en specs de relojes, celulares, tablets y laptops
+# ("Pantalla 1.6\"", "Pantalla De 6.7\""). Sin esto, un Galaxy Watch o un
+# celular terminan contando como "el televisor más barato". Namespaced: solo
+# se aplica cuando la query es de TV, para no afectar búsquedas de esos
+# productos en sí ("celular samsung", "reloj samsung", etc.).
+_TV_TOKENS = next(g for g in _SYN_GROUPS if "televisor" in g)
+_WEARABLE_EXCLUDE = {
+    "reloj", "relojes", "smartwatch", "watch", "band", "bandas",
+    "pulsera", "pulseras", "buds", "fit", "wearable",
+    "celular", "celulares", "telefono", "telefonos", "smartphone",
+    "smartphones", "tablet", "tableta", "tabletas", "tablets", "ipad",
+    "laptop", "laptops", "notebook", "notebooks",
+}
+
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
 # producto (p.ej. "50 ml" no satisface la búsqueda "pantalla 50").
 _UNIT_AFTER = r"(?!\s?(?:ml|g|gr|kg|mg|mah|w|watts?|v|hz|cc)\b)"
@@ -391,7 +406,24 @@ def search_queries(query: str, *, limit: int = 6) -> list[str]:
             seen.add(normalize(text))
             out.append(text)
             if len(out) >= limit:
-                break
+                return out
+
+    # Fallback para queries genéricas de 2+ palabras sin alias conocido
+    # ("televisor samsung"): varias tiendas devuelven basura (o nada) para la
+    # frase completa aunque sí tengan el producto, porque su buscador no hace
+    # bien el AND de dos términos. Agregamos cada palabra suelta como query
+    # adicional para ampliar lo que se trae de cada tienda; el filtro de
+    # relevancia sigue exigiendo que el nombre final calce con TODAS las
+    # palabras originales, así que esto no afloja qué cuenta como match.
+    if len(base) >= 2:
+        for tok in base:
+            if _is_number(tok) or len(tok) < 3:
+                continue
+            if normalize(tok) not in seen:
+                seen.add(normalize(tok))
+                out.append(tok)
+                if len(out) >= limit:
+                    break
     return out
 
 
@@ -542,6 +574,10 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
     allows_for_phrase = _allows_for_phrase(query)
     if not query_wants_accessory:
         if _ACCESSORY & name_toks:
+            return False
+        is_tv_query = bool(set(original_qtoks) & _TV_TOKENS)
+        wants_wearable = bool(set(original_qtoks) & _WEARABLE_EXCLUDE)
+        if is_tv_query and not wants_wearable and (_WEARABLE_EXCLUDE & name_toks):
             return False
         # Regla general: "<algo> para <producto>" es un accesorio PARA el
         # producto, no el producto (Motor para Licuadora, Soporte para
