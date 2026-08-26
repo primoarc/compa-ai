@@ -115,7 +115,9 @@ def _parse_magento(store: Store, html: str) -> list[Product]:
 
 _K_ANCHOR = re.compile(r'<a title="([^"]*)"[^>]*href="(/[a-z0-9][a-z0-9\-]{20,})"', re.I)
 _K_PRICE = re.compile(r'data-component="Price"[^>]*>\s*<div>Q\s?([\d,]+)</div>', re.I)
-_K_IMG = re.compile(r'<img\s+src="(https://cdn\.kemik\.gt[^"]+)"', re.I)
+# Kemik migró su CDN de cdn.kemik.gt a static.kemikcdn.com; se acepta cualquier
+# host que contenga "kemik" para no volver a romper con el próximo cambio.
+_K_IMG = re.compile(r'<img\s+src="(https://[^"]*kemik[^"]*)"', re.I)
 
 
 def _parse_kemik(store: Store, html: str) -> list[Product]:

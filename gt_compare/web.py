@@ -496,21 +496,66 @@ def _seo_page_html(page: SeoPage, rows: list[dict], cheapest: str | None, plan_s
 <meta property="og:description" content="{_e(page.description)}">
 <meta property="og:url" content="{canonical}">
 <meta property="og:type" content="website">
+<meta name="theme-color" content="#ffffff">
 <script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-body{{margin:0;background:#0a0b12;color:#e8eaf2;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;line-height:1.5}}
-a{{color:inherit}}.wrap{{max-width:980px;margin:0 auto;padding:28px 16px 64px}}
-.top{{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:34px}}
-.brand{{font-weight:900;font-size:22px;text-decoration:none;color:#fff}}.brand span{{color:#22d3ee}}
-.search{{color:#cbbcff;text-decoration:none;border:1px solid #2b3150;padding:9px 13px;border-radius:10px}}
-h1{{font-size:clamp(34px,6vw,62px);line-height:1.02;margin:0 0 14px;color:#fff;letter-spacing:0}}
-.lead{{color:#a7acc4;font-size:18px;max-width:760px}}.summary{{margin:22px 0;padding:18px;border:1px solid #263052;background:#121524;border-radius:14px}}
-.grid{{display:grid;gap:12px;margin-top:22px}}.card{{display:grid;grid-template-columns:44px 74px 1fr auto;gap:14px;align-items:center;background:#161827;border:1px solid #262a40;border-radius:16px;padding:14px;text-decoration:none}}
-.card.best{{border-color:#1fd286;box-shadow:0 0 0 1px #1fd286}}.rank{{color:#8b8fa6;font-weight:800;text-align:center}}img{{width:74px;height:74px;object-fit:contain;background:#fff;border-radius:12px}}
-.store{{color:#22d3ee;font-size:12px;font-weight:800;text-transform:uppercase}}.name{{font-size:16px;color:#fff}}.stock{{color:#8b8fa6;font-size:13px}}.price{{font-size:24px;font-weight:900;color:#fff;text-align:right}}.best .price{{color:#1fd286}}
-.badge{{font-size:11px;background:#1fd286;color:#062412;font-weight:900;padding:4px 8px;border-radius:8px;margin-top:4px;display:inline-block}}
-.section{{margin-top:36px}}.links{{display:flex;flex-wrap:wrap;gap:10px}}.links a{{text-decoration:none;color:#cbd5e1;border:1px solid #2b3150;border-radius:999px;padding:8px 12px;background:#11131f}}
-ul{{color:#a7acc4}}footer{{margin-top:44px;color:#8b8fa6;font-size:13px}}@media(max-width:680px){{.top{{align-items:flex-start;flex-direction:column}}.card{{grid-template-columns:30px 58px 1fr}}img{{width:58px;height:58px}}.price{{grid-column:3;text-align:left;font-size:20px}}}}
+:root{{--paper:#fdfdfc;--white:#fff;--ink:#0b0b0c;--ink-2:#3a3a3e;--muted:#76767c;--faint:#a1a1a8;
+--rule:rgba(11,11,12,.09);--rule-2:rgba(11,11,12,.055);--wash:#f6f6f4;--emerald:#0a6b47;--emerald-soft:#e9f4ef;--amber:#8a5a00;
+--serif:"Instrument Serif","Iowan Old Style",Georgia,serif;--sans:"Instrument Sans","Helvetica Neue",Helvetica,Arial,sans-serif}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
+-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}}
+a{{color:inherit}}::selection{{background:var(--emerald);color:#fff}}
+.wrap{{max-width:880px;margin:0 auto;padding:22px 24px 72px}}
+.top{{display:flex;justify-content:space-between;gap:16px;align-items:center;
+padding-bottom:20px;margin-bottom:44px;border-bottom:1px solid var(--rule)}}
+.brand{{font-family:var(--serif);font-size:23px;letter-spacing:-.01em;text-decoration:none}}
+.brand span{{font-style:italic;color:var(--emerald)}}
+.search{{font-size:13.5px;font-weight:500;color:var(--ink);text-decoration:none;
+border:1px solid var(--rule);border-radius:999px;padding:8px 16px;transition:background .18s,border-color .18s}}
+.search:hover{{background:var(--wash);border-color:rgba(11,11,12,.2)}}
+h1{{font-family:var(--serif);font-weight:400;font-size:clamp(34px,6vw,58px);line-height:1.03;
+margin:0 0 16px;letter-spacing:-.02em;text-wrap:balance}}
+.lead{{color:var(--muted);font-size:17px;max-width:620px;margin:0}}
+.summary{{margin:28px 0 0;padding:18px 20px;border:1px solid var(--rule-2);background:var(--white);border-radius:14px}}
+.summary p{{margin:0;font-size:14.5px;color:var(--muted)}}
+.summary p+p{{margin-top:8px;font-size:13px;color:var(--faint)}}
+.summary strong{{color:var(--emerald);font-weight:600;font-variant-numeric:tabular-nums}}
+.grid{{display:flex;flex-direction:column;margin-top:34px}}
+.card{{display:grid;grid-template-columns:26px 56px 1fr auto;gap:16px;align-items:center;
+padding:16px 14px;margin:0 -14px;border-radius:14px;border-bottom:1px solid var(--rule-2);
+text-decoration:none;position:relative;transition:background .18s}}
+.card:hover{{background:var(--white);box-shadow:0 1px 2px rgba(11,11,12,.04),0 10px 30px -22px rgba(11,11,12,.4)}}
+.card.best{{background:var(--emerald-soft)}}
+.card.best::before{{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;border-radius:2px;background:var(--emerald)}}
+.rank{{color:var(--faint);text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums}}
+.best .rank{{color:var(--emerald);font-weight:600}}
+img{{width:56px;height:56px;object-fit:contain;background:var(--white);border:1px solid var(--rule-2);border-radius:9px}}
+.store{{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.11em;text-transform:uppercase}}
+.best .store{{color:var(--emerald)}}
+.name{{font-size:14.5px;color:var(--ink);margin-top:3px;line-height:1.35}}
+.stock{{color:var(--faint);font-size:11.5px;margin-top:5px}}
+.price{{font-size:19px;font-weight:600;text-align:right;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}}
+.best .price{{color:var(--emerald)}}
+.badge{{font-size:9.5px;color:var(--emerald);font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-top:4px;display:inline-block}}
+.section{{margin-top:48px}}
+.section h2{{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}}
+.links{{display:flex;flex-wrap:wrap;gap:7px}}
+.links a{{text-decoration:none;font-size:13px;color:var(--ink-2);border:1px solid var(--rule-2);
+border-radius:999px;padding:7px 13px;transition:background .18s,border-color .18s}}
+.links a:hover{{background:var(--wash);border-color:var(--rule)}}
+ul{{color:var(--muted);font-size:13.5px;margin:0;padding-left:18px}}
+ul li{{padding:3px 0}}ul strong{{color:var(--ink-2);font-weight:600}}
+footer{{margin-top:56px;padding-top:24px;border-top:1px solid var(--rule);color:var(--faint);font-size:12.5px}}
+@media(max-width:680px){{
+.wrap{{padding:18px 18px 64px}}
+.top{{align-items:flex-start;flex-direction:column;gap:12px}}
+.card{{grid-template-columns:20px 46px 1fr;padding:14px 10px;margin:0 -10px;gap:12px}}
+img{{width:46px;height:46px}}
+.price{{grid-column:3;text-align:left;font-size:17px;margin-top:6px}}}}
 </style>
 </head>
 <body>
@@ -557,6 +602,54 @@ def _seo_result_card(row: dict, idx: int, is_best: bool) -> str:
 
 
 def _not_found_html() -> str:
-    links = "".join(f'<li><a href="/comparar/{_e(page.slug)}">{_e(page.h1)}</a></li>' for page in SEO_PAGES)
-    return f"""<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Página no encontrada | Compa AI</title></head>
-<body><h1>Página no encontrada</h1><p>Comparaciones disponibles:</p><ul>{links}</ul></body></html>"""
+    links = "".join(
+        f'<a href="/comparar/{_e(page.slug)}">{_e(page.h1)}</a>' for page in SEO_PAGES
+    )
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Página no encontrada | Compa AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{{--paper:#fdfdfc;--ink:#0b0b0c;--ink-2:#3a3a3e;--muted:#76767c;--faint:#a1a1a8;
+--rule:rgba(11,11,12,.09);--rule-2:rgba(11,11,12,.055);--wash:#f6f6f4;--emerald:#0a6b47;
+--serif:"Instrument Serif",Georgia,serif;--sans:"Instrument Sans","Helvetica Neue",Arial,sans-serif}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
+-webkit-font-smoothing:antialiased}}
+a{{color:inherit}}
+.wrap{{max-width:640px;margin:0 auto;padding:96px 24px 72px;text-align:center}}
+.brand{{font-family:var(--serif);font-size:23px;text-decoration:none;display:inline-block;margin-bottom:56px}}
+.brand span{{font-style:italic;color:var(--emerald)}}
+h1{{font-family:var(--serif);font-weight:400;font-size:clamp(34px,7vw,52px);line-height:1.05;
+letter-spacing:-.02em;margin:0 0 12px}}
+p{{color:var(--muted);font-size:16px;margin:0 auto;max-width:400px}}
+.home{{display:inline-block;margin-top:28px;background:var(--ink);color:#fff;text-decoration:none;
+font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:999px}}
+.section{{margin-top:64px;padding-top:26px;border-top:1px solid var(--rule)}}
+.section h2{{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+color:var(--faint);margin:0 0 14px}}
+.links{{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}}
+.links a{{text-decoration:none;font-size:13px;color:var(--ink-2);border:1px solid var(--rule-2);
+border-radius:999px;padding:7px 13px;transition:background .18s,border-color .18s}}
+.links a:hover{{background:var(--wash);border-color:var(--rule)}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <a class="brand" href="/">Compa <span>AI</span></a>
+  <h1>Esta página no existe</h1>
+  <p>El enlace que seguiste no corresponde a ninguna comparación disponible.</p>
+  <a class="home" href="/">Buscar un producto</a>
+  <section class="section">
+    <h2>Comparaciones disponibles</h2>
+    <div class="links">{links}</div>
+  </section>
+</main>
+</body>
+</html>"""

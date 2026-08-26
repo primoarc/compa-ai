@@ -5,382 +5,666 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compa AI · precios Guatemala</title>
 <meta name="description" content="Compara precios en tiendas de Guatemala. Encuentra televisores, lavadoras, taladros, laptops, cafeteras y más al mejor precio.">
+<meta name="theme-color" content="#ffffff">
 <link rel="canonical" href="https://gt-compare.vercel.app/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0b12; --bg2:#11131f; --card:#161827; --card2:#1c1f33;
-    --txt:#e8eaf2; --muted:#8b8fa6; --line:#262a40;
-    --accent:#7c5cff; --accent2:#22d3ee; --green:#1fd286; --amber:#f5b54a;
-    --hot:#f472b6; --white:#ffffff;
+    --paper:#fdfdfc;
+    --white:#ffffff;
+    --ink:#0b0b0c;
+    --ink-2:#3a3a3e;
+    --muted:#76767c;
+    --faint:#a1a1a8;
+    --rule:rgba(11,11,12,.09);
+    --rule-2:rgba(11,11,12,.055);
+    --wash:#f6f6f4;
+    --emerald:#0a6b47;
+    --emerald-soft:#e9f4ef;
+    --amber:#8a5a00;
+    --radius:14px;
+    --serif:"Instrument Serif","Iowan Old Style",Georgia,serif;
+    --sans:"Instrument Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
+    --ease:cubic-bezier(.22,.61,.36,1);
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
   body{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
-    background:radial-gradient(1200px 600px at 50% -10%,#1a1140 0%,var(--bg) 55%);
-    color:var(--txt); min-height:100vh; padding:0 16px 80px;
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
   }
-  .wrap{max-width:820px;margin:0 auto}
-  .boot{
-    position:fixed;inset:0;z-index:10;display:grid;place-items:center;overflow:hidden;
-    background:
-      linear-gradient(rgba(34,211,238,.08) 1px,transparent 1px),
-      linear-gradient(90deg,rgba(34,211,238,.07) 1px,transparent 1px),
-      radial-gradient(700px 360px at 50% 35%,rgba(124,92,255,.28),transparent 62%),
-      #05070d;
-    background-size:42px 42px,42px 42px,auto,auto;
-    animation:bootOut .55s ease 1.85s forwards;
-  }
-  .boot::before{
-    content:"";position:absolute;inset:-35%;
-    background:conic-gradient(from 135deg,transparent 0 32%,rgba(34,211,238,.18) 38%,transparent 46%,transparent 70%,rgba(244,114,182,.16) 76%,transparent 84%);
-    animation:sweep 2.2s linear infinite;
-  }
-  .boot::after{
-    content:"";position:absolute;left:0;right:0;top:-18%;height:18%;
-    background:linear-gradient(180deg,transparent,rgba(34,211,238,.38),transparent);
-    filter:blur(8px);animation:scan 1.7s cubic-bezier(.55,0,.2,1) .15s forwards;
-  }
-  .boot-core{
-    position:relative;width:min(430px,86vw);padding:34px 28px 30px;text-align:center;
-    border:1px solid rgba(255,255,255,.14);
-    background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.025));
-    box-shadow:0 24px 80px rgba(0,0,0,.5),0 0 42px rgba(34,211,238,.18);
-    backdrop-filter:blur(18px);
-  }
-  .boot-mark{
-    width:78px;height:78px;margin:0 auto 18px;display:grid;place-items:center;
-    border:1px solid rgba(34,211,238,.55);color:#fff;font-size:30px;font-weight:900;
-    letter-spacing:-1px;text-shadow:0 0 18px rgba(34,211,238,.75);
-    box-shadow:inset 0 0 24px rgba(34,211,238,.18),0 0 40px rgba(124,92,255,.25);
-    clip-path:polygon(14% 0,86% 0,100% 14%,100% 86%,86% 100%,14% 100%,0 86%,0 14%);
-    animation:pulseNode .8s ease-in-out 3 alternate;
-  }
-  .boot-title{
-    color:#fff;font-size:clamp(32px,9vw,58px);font-weight:900;line-height:.95;letter-spacing:0;
-    text-transform:uppercase;text-shadow:0 0 24px rgba(124,92,255,.5);
-  }
-  .boot-line{height:2px;margin:24px auto 0;width:72%;overflow:hidden;background:rgba(255,255,255,.12)}
-  .boot-line span{display:block;height:100%;width:42%;background:linear-gradient(90deg,var(--accent2),var(--hot));animation:loadLine 1.35s ease-in-out forwards}
-  @keyframes sweep{to{transform:rotate(1turn)}}
-  @keyframes scan{to{transform:translateY(760%)}}
-  @keyframes pulseNode{to{transform:scale(1.06);box-shadow:inset 0 0 28px rgba(34,211,238,.28),0 0 54px rgba(34,211,238,.34)}}
-  @keyframes loadLine{from{transform:translateX(-110%)}to{transform:translateX(245%)}}
-  @keyframes bootOut{to{opacity:0;visibility:hidden;pointer-events:none;transform:scale(1.015)}}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px}
+  a{color:inherit}
+  ::selection{background:var(--emerald);color:#fff}
 
-  header{padding:56px 0 28px;text-align:center}
-  .logo{
-    color:var(--white);font-size:46px;font-weight:900;letter-spacing:0;
-    text-transform:uppercase;text-shadow:0 0 26px rgba(34,211,238,.34);
+  /* ---------- barra superior ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:40;background:rgba(253,253,252,.82);
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:1px solid transparent;transition:border-color .3s var(--ease);
   }
-  .logo span{color:var(--accent2);font-weight:900;text-shadow:0 0 24px rgba(34,211,238,.65)}
-  .tag{color:var(--muted);margin-top:10px;font-size:15px}
-  .tag b{color:var(--txt);font-weight:600}
+  .topbar.stuck{border-bottom-color:var(--rule)}
+  .topbar-in{
+    max-width:880px;margin:0 auto;padding:14px 24px;
+    display:flex;align-items:center;gap:16px;
+  }
+  .mark{
+    font-family:var(--serif);font-size:23px;letter-spacing:-.01em;line-height:1;
+    text-decoration:none;white-space:nowrap;
+  }
+  .mark em{font-style:italic;color:var(--emerald)}
+  .topbar-search{
+    flex:1;opacity:0;transform:translateY(-6px);pointer-events:none;
+    transition:opacity .28s var(--ease),transform .28s var(--ease);
+  }
+  .topbar.stuck .topbar-search{opacity:1;transform:none;pointer-events:auto}
+  .topbar-search input{
+    width:100%;font-family:var(--sans);font-size:14px;color:var(--ink);
+    background:var(--white);border:1px solid var(--rule);border-radius:999px;
+    padding:9px 16px;outline:none;transition:border-color .2s var(--ease),box-shadow .2s var(--ease);
+  }
+  .topbar-search input:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(11,11,12,.06)}
+  .count{
+    font-size:12px;color:var(--muted);white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  @media (max-width:620px){ .count{display:none} }
 
+  /* ---------- hero ---------- */
+  .hero{padding:76px 0 0;text-align:center}
+  .eyebrow{
+    font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:22px;
+  }
+  h1{
+    font-family:var(--serif);font-weight:400;
+    font-size:clamp(40px,7.4vw,68px);line-height:1.02;letter-spacing:-.02em;
+    text-wrap:balance;
+  }
+  h1 em{font-style:italic;color:var(--emerald)}
+  .lede{
+    max-width:470px;margin:20px auto 0;color:var(--muted);font-size:16.5px;
+    line-height:1.55;text-wrap:pretty;
+  }
+
+  /* ---------- buscador ---------- */
+  .searchwrap{margin:38px 0 0}
   .searchbar{
-    display:flex;gap:10px;margin:30px 0 14px;position:relative;
+    display:flex;align-items:center;gap:10px;background:var(--white);
+    border:1px solid var(--rule);border-radius:999px;padding:7px 7px 7px 22px;
+    transition:border-color .2s var(--ease),box-shadow .25s var(--ease);
+    box-shadow:0 1px 2px rgba(11,11,12,.03),0 8px 26px -18px rgba(11,11,12,.28);
   }
+  .searchbar:focus-within{
+    border-color:rgba(11,11,12,.34);
+    box-shadow:0 1px 2px rgba(11,11,12,.04),0 14px 40px -20px rgba(11,11,12,.38);
+  }
+  .searchbar svg{flex:none;color:var(--faint)}
   .searchbar input{
-    flex:1;background:var(--card);border:1px solid var(--line);color:var(--txt);
-    border-radius:16px;padding:18px 20px;font-size:17px;outline:none;
-    transition:border .2s,box-shadow .2s;
+    flex:1;min-width:0;border:0;outline:none;background:none;
+    font-family:var(--sans);font-size:17px;color:var(--ink);padding:12px 0;
   }
-  .searchbar input:focus{
-    border-color:var(--accent);box-shadow:0 0 0 4px rgba(124,92,255,.15);
+  .searchbar input::placeholder{color:var(--faint)}
+  .go{
+    flex:none;background:var(--ink);color:var(--white);border:0;cursor:pointer;
+    font-family:var(--sans);font-size:14.5px;font-weight:600;letter-spacing:-.01em;
+    padding:13px 25px;border-radius:999px;
+    transition:transform .12s var(--ease),opacity .2s var(--ease);
   }
-  .searchbar button{
-    background:linear-gradient(90deg,var(--accent),#9d7bff);border:0;color:#fff;
-    font-weight:700;font-size:16px;padding:0 26px;border-radius:16px;cursor:pointer;
-    transition:transform .1s,filter .2s;
+  .go:hover{transform:translateY(-1px)}
+  .go:active{transform:translateY(0) scale(.98)}
+  .go:disabled{opacity:.4;cursor:default;transform:none}
+  .kbd{
+    margin-top:12px;text-align:center;font-size:12px;color:var(--faint);
   }
-  .searchbar button:hover{filter:brightness(1.1)}
-  .searchbar button:active{transform:scale(.97)}
-  .searchbar button:disabled{opacity:.55;cursor:default}
+  .kbd b{
+    font-weight:500;font-family:var(--sans);background:var(--wash);
+    border:1px solid var(--rule-2);border-radius:5px;padding:1px 6px;color:var(--muted);
+  }
 
-  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  /* ---------- filtros de tienda ---------- */
+  .chips{
+    display:flex;flex-wrap:wrap;gap:6px;margin:26px 0 0;justify-content:center;
+  }
   .chip{
-    background:var(--card);border:1px solid var(--line);color:var(--muted);
-    padding:7px 14px;border-radius:999px;font-size:13px;cursor:pointer;transition:.15s;
+    font-family:var(--sans);font-size:12.5px;color:var(--muted);cursor:pointer;
+    background:none;border:1px solid transparent;border-radius:999px;padding:5px 12px;
+    transition:color .18s var(--ease),background .18s var(--ease),border-color .18s var(--ease);
   }
-  .chip:hover{color:var(--txt);border-color:#3a3f5e}
-  .chip.on{background:rgba(124,92,255,.15);border-color:var(--accent);color:#cbbcff}
+  .chip:hover{color:var(--ink);background:var(--wash)}
+  .chip.on{color:var(--white);background:var(--ink);border-color:var(--ink)}
 
-  .meta{color:var(--muted);font-size:13px;margin:18px 2px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-  .toggle{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .toggle button{background:transparent;border:0;color:var(--muted);font-size:12px;font-weight:600;padding:7px 12px;cursor:pointer}
-  .toggle button.on{background:rgba(124,92,255,.2);color:#cbbcff}
-  .results{display:flex;flex-direction:column;gap:12px}
-
-  .more{margin:10px 0 2px 64px;background:none;border:0;color:var(--accent2);font-size:12.5px;
-    font-weight:600;cursor:pointer;padding:4px 0;text-align:left}
-  .more:hover{text-decoration:underline}
-  .sub{margin:6px 0 4px 64px;display:flex;flex-direction:column;gap:6px}
-  .subrow{display:flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--line);
-    border-radius:12px;padding:9px 14px;text-decoration:none;color:inherit;transition:.15s}
-  .subrow:hover{border-color:#3a3f5e;background:var(--card2)}
-  .subrow .sname{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
-  .subrow .sprice{font-weight:700;font-size:14px}
-  .gstore{font-size:11px;color:var(--accent2);font-weight:700;text-transform:uppercase}
-  .loadmore{display:block;width:100%;margin-top:14px;background:var(--card);border:1px solid var(--line);
-    color:#cbbcff;font-size:14px;font-weight:600;padding:14px;border-radius:14px;cursor:pointer;transition:.15s}
-  .loadmore:hover{border-color:var(--accent);background:var(--card2)}
-
-  .card{
-    display:flex;align-items:center;gap:16px;background:var(--card);
-    border:1px solid var(--line);border-radius:16px;padding:14px 18px;
-    text-decoration:none;color:inherit;transition:transform .12s,border-color .2s,background .2s;
-    animation:rise .35s ease both;
+  /* ---------- patrocinio (subasta) ---------- */
+  .sponsor{
+    display:flex;align-items:center;gap:14px;margin:30px 0 0;padding:14px 18px;
+    border:1px solid var(--rule-2);border-radius:var(--radius);background:var(--white);
+    text-decoration:none;transition:border-color .2s var(--ease),background .2s var(--ease);
   }
-  .card:hover{transform:translateY(-2px);border-color:#3a3f5e;background:var(--card2)}
-  .card.best{border-color:var(--green);box-shadow:0 0 0 1px var(--green),0 8px 30px -12px rgba(31,210,134,.5)}
-  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .sponsor:hover{border-color:var(--rule);background:var(--wash)}
+  .sponsor-tag{
+    flex:none;font-size:9.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint);border:1px solid var(--rule);border-radius:4px;padding:3px 6px;
+  }
+  .sponsor-txt{flex:1;min-width:0;font-size:13.5px;color:var(--muted)}
+  .sponsor-txt b{color:var(--ink);font-weight:600}
+  .sponsor-cta{flex:none;font-size:13px;font-weight:600;color:var(--emerald)}
+  @media (max-width:560px){
+    .sponsor{gap:10px;padding:12px 14px}
+    .sponsor-txt{font-size:12.5px}
+    .sponsor-cta{display:none}
+  }
 
-  .rank{width:26px;text-align:center;color:var(--muted);font-weight:700;font-size:14px;flex:none}
-  .thumb{width:54px;height:54px;border-radius:12px;object-fit:contain;background:#fff;flex:none}
-  .thumb.ph{display:flex;align-items:center;justify-content:center;background:var(--card2);color:var(--muted);font-size:11px}
-  .info{flex:1;min-width:0}
-  .store{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent2)}
-  .pname{font-size:14px;color:var(--txt);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .right{text-align:right;flex:none}
-  .price{font-size:20px;font-weight:800;letter-spacing:-.5px}
-  .best .price{color:var(--green)}
-  .badge{display:inline-block;margin-top:4px;font-size:10px;font-weight:700;letter-spacing:.5px;
-    background:var(--green);color:#04210f;padding:3px 8px;border-radius:6px}
-  .stock{font-size:11px;color:var(--muted);margin-top:5px}
+  /* ---------- meta / segmentado ---------- */
+  .results-head{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    margin:44px 0 4px;padding-bottom:14px;border-bottom:1px solid var(--rule);
+  }
+  .results-head h2{
+    font-family:var(--serif);font-weight:400;font-size:25px;letter-spacing:-.01em;
+  }
+  .results-head .sum{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:14px 0;flex-wrap:wrap;
+  }
+  .savings{font-size:13.5px;color:var(--muted)}
+  .savings b{
+    color:var(--emerald);font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .seg{
+    display:flex;background:var(--wash);border-radius:999px;padding:3px;gap:2px;
+  }
+  .seg button{
+    font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--muted);
+    background:none;border:0;border-radius:999px;padding:6px 14px;cursor:pointer;
+    transition:color .18s var(--ease),background .18s var(--ease),box-shadow .18s var(--ease);
+  }
+  .seg button.on{
+    color:var(--ink);background:var(--white);
+    box-shadow:0 1px 2px rgba(11,11,12,.07);
+  }
+
+  /* ---------- filas de resultado ---------- */
+  .rows{display:flex;flex-direction:column}
+  .row{
+    display:grid;
+    grid-template-columns:26px 52px 1fr auto;
+    align-items:center;gap:16px;
+    padding:16px 14px;margin:0 -14px;
+    border-radius:var(--radius);
+    text-decoration:none;color:inherit;position:relative;
+    border-bottom:1px solid var(--rule-2);
+    transition:background .18s var(--ease);
+    animation:rise .42s var(--ease) both;
+  }
+  .row:hover{background:var(--white);box-shadow:0 1px 2px rgba(11,11,12,.04),0 10px 30px -22px rgba(11,11,12,.4)}
+  .row:last-child{border-bottom:0}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+  .row.best{background:var(--emerald-soft)}
+  .row.best:hover{background:#e2f0ea}
+  .row.best::before{
+    content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;
+    border-radius:2px;background:var(--emerald);
+  }
+  .rank{
+    font-size:12.5px;color:var(--faint);text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .best .rank{color:var(--emerald);font-weight:600}
+  .thumb{
+    width:52px;height:52px;border-radius:9px;object-fit:contain;
+    background:var(--white);border:1px solid var(--rule-2);
+  }
+  .thumb.ph{
+    display:flex;align-items:center;justify-content:center;
+    background:var(--wash);color:var(--faint);font-size:15px;
+  }
+  .info{min-width:0}
+  .store{
+    font-size:10.5px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--muted);
+  }
+  .best .store{color:var(--emerald)}
+  .pname{
+    font-size:14.5px;color:var(--ink);margin-top:3px;line-height:1.35;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .stock{font-size:11.5px;color:var(--faint);margin-top:5px}
   .stock.no{color:var(--amber)}
-  .stock.note{color:#a7acc4}
-
-  .card.fail{opacity:.6;animation:none}
-  .card.fail .pname{color:var(--muted)}
-
-  .empty{text-align:center;color:var(--muted);padding:60px 0}
-  .seo-links{margin:34px 0 0;padding-top:20px;border-top:1px solid var(--line)}
-  .seo-links h2{font-size:18px;color:#fff;margin-bottom:12px}
-  .seo-grid{display:flex;flex-wrap:wrap;gap:9px}
-  .seo-grid a{background:var(--card);border:1px solid var(--line);color:#cbd5e1;text-decoration:none;
-    border-radius:999px;padding:8px 12px;font-size:13px;transition:.15s}
-  .seo-grid a:hover{border-color:var(--accent);color:#fff}
-  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);
-    border-radius:50%;animation:spin .8s linear infinite;margin:50px auto}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .save{color:var(--green);font-weight:700}
-  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:40px}
-  footer code{background:var(--card);padding:2px 7px;border-radius:6px;color:#cbbcff}
-  @media (prefers-reduced-motion:reduce){
-    .boot,.boot::before,.boot::after,.boot-mark,.boot-line span,.card,.spinner{animation:none}
-    .boot{display:none}
+  .right{text-align:right;white-space:nowrap}
+  .price{
+    font-size:19px;font-weight:600;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;
   }
+  .best .price{color:var(--emerald)}
+  .delta{
+    font-size:12px;color:var(--faint);margin-top:3px;
+    font-variant-numeric:tabular-nums;
+  }
+  .tagbest{
+    display:inline-block;margin-top:4px;font-size:9.5px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--emerald);
+  }
+
+  /* filas secundarias */
+  .more{
+    background:none;border:0;cursor:pointer;font-family:var(--sans);
+    font-size:12.5px;font-weight:500;color:var(--muted);
+    padding:9px 0 9px 94px;text-align:left;
+    transition:color .18s var(--ease);
+  }
+  .more:hover{color:var(--ink)}
+  .sub{display:none;flex-direction:column;padding:0 0 10px 94px}
+  .sub.open{display:flex}
+  .subrow{
+    display:flex;align-items:center;gap:14px;padding:9px 12px;
+    border-radius:9px;text-decoration:none;color:inherit;
+    transition:background .16s var(--ease);
+  }
+  .subrow:hover{background:var(--wash)}
+  .subrow .sname{
+    flex:1;min-width:0;font-size:13px;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .subrow .sprice{
+    font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .loadmore{
+    display:block;width:100%;margin-top:20px;background:none;
+    border:1px solid var(--rule);border-radius:999px;
+    font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--ink-2);
+    padding:13px;cursor:pointer;
+    transition:background .18s var(--ease),border-color .18s var(--ease);
+  }
+  .loadmore:hover{background:var(--wash);border-color:rgba(11,11,12,.2)}
+
+  /* tiendas sin resultado */
+  .misses{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule)}
+  .misses-h{
+    font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:12px;
+  }
+  .miss{
+    display:flex;align-items:baseline;gap:10px;padding:6px 0;font-size:13px;
+  }
+  .miss .mstore{
+    font-weight:600;color:var(--ink-2);min-width:118px;
+  }
+  .miss .mwhy{color:var(--faint)}
+
+  /* ---------- skeleton ---------- */
+  .skel-row{
+    display:grid;grid-template-columns:26px 52px 1fr auto;align-items:center;gap:16px;
+    padding:16px 0;border-bottom:1px solid var(--rule-2);
+  }
+  .sk{
+    background:linear-gradient(90deg,var(--wash) 25%,#eeeeeb 37%,var(--wash) 63%);
+    background-size:400% 100%;border-radius:6px;animation:shimmer 1.4s ease infinite;
+  }
+  .sk.thumb{border:0}
+  .sk.l1{height:9px;width:76px;margin-bottom:9px}
+  .sk.l2{height:12px;width:min(78%,330px)}
+  .sk.p{height:16px;width:82px}
+  @keyframes shimmer{from{background-position:100% 0}to{background-position:0 0}}
+
+  /* ---------- estados ---------- */
+  .state{text-align:center;padding:66px 20px}
+  .state h3{
+    font-family:var(--serif);font-weight:400;font-size:26px;letter-spacing:-.01em;
+    margin-bottom:8px;
+  }
+  .state p{color:var(--muted);font-size:14.5px;max-width:400px;margin:0 auto}
+  .state .go{margin-top:22px}
+
+  /* ---------- enlaces SEO ---------- */
+  .seo{margin:64px 0 0;padding-top:26px;border-top:1px solid var(--rule)}
+  .seo h2{
+    font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:14px;
+  }
+  .seo-grid{display:flex;flex-wrap:wrap;gap:7px}
+  .seo-grid a{
+    font-size:13px;color:var(--ink-2);text-decoration:none;
+    border:1px solid var(--rule-2);border-radius:999px;padding:7px 13px;
+    transition:border-color .18s var(--ease),background .18s var(--ease);
+  }
+  .seo-grid a:hover{border-color:var(--rule);background:var(--wash)}
+
+  footer{
+    margin-top:60px;padding:26px 0 60px;border-top:1px solid var(--rule);
+    display:flex;justify-content:space-between;align-items:center;gap:16px;
+    font-size:12.5px;color:var(--faint);flex-wrap:wrap;
+  }
+  footer .fmark{font-family:var(--serif);font-size:16px;color:var(--ink-2)}
+
   @media (max-width:620px){
-    body{padding:0 12px 64px}
-    header{padding-top:42px}
-    .logo{font-size:38px}
-    .searchbar{flex-direction:column}
-    .searchbar button{min-height:54px}
-    .meta{align-items:flex-start;flex-direction:column}
-    .card{align-items:flex-start;padding:13px 14px;gap:12px}
-    .right{min-width:92px}
+    .wrap{padding:0 18px}
+    .topbar-in{padding:12px 18px}
+    .hero{padding-top:52px}
+    .searchbar{padding:6px 6px 6px 18px;gap:8px}
+    .searchbar input{font-size:16px;padding:11px 0}
+    .go{padding:12px 19px;font-size:14px}
+    .row{grid-template-columns:20px 44px 1fr auto;gap:12px;padding:14px 10px;margin:0 -10px}
+    .thumb,.sk.thumb{width:44px;height:44px}
+    .pname{font-size:13.5px}
     .price{font-size:17px}
+    .more,.sub{padding-left:76px}
+    .results-head{flex-direction:column;gap:4px;align-items:flex-start}
+    .miss .mstore{min-width:96px}
+    /* sin teclado físico el atajo no aplica */
+    .kbd{display:none}
+    /* 13 chips en 4 líneas empujan los resultados fuera de vista: en móvil se
+       vuelven una sola fila deslizable que sangra hasta el borde. */
+    .chips{
+      flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;
+      margin:20px -18px 0;padding:0 18px 2px;
+      scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    }
+    .chips::-webkit-scrollbar{display:none}
+    .chip{flex:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
   }
 </style>
 </head>
 <body>
-<div class="boot" id="boot" aria-hidden="true">
-  <div class="boot-core">
-    <div class="boot-mark">CA</div>
-    <div class="boot-title">Compa AI</div>
-    <div class="boot-line"><span></span></div>
+
+<div class="topbar" id="topbar">
+  <div class="topbar-in">
+    <a class="mark" href="/">Compa <em>AI</em></a>
+    <form class="topbar-search" id="form2" autocomplete="off" role="search">
+      <input id="q2" placeholder="Buscar otro producto…" aria-label="Buscar producto">
+    </form>
+    <span class="count" id="storeCount"></span>
   </div>
 </div>
+
 <div class="wrap">
-  <header>
-    <div class="logo">Compa <span>AI</span></div>
-    <div class="tag">Compara precios en tiempo real en <b>tiendas de Guatemala</b></div>
+
+  <header class="hero" id="hero">
+    <div class="eyebrow">Comparador de precios · Guatemala</div>
+    <h1>Encontrá el <em>precio más bajo</em> sin abrir trece pestañas.</h1>
+    <p class="lede">Buscamos en las principales tiendas guatemaltecas al mismo tiempo y te decimos dónde cuesta menos.</p>
   </header>
 
-  <form class="searchbar" id="form" autocomplete="off">
-    <input id="q" placeholder="Busca un producto… (ej. televisor samsung)" autofocus>
-    <button type="submit" id="go">Buscar</button>
-  </form>
-  <div class="chips" id="chips"></div>
+  <div class="searchwrap">
+    <form class="searchbar" id="form" autocomplete="off" role="search">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path>
+      </svg>
+      <input id="q" placeholder="Televisor Samsung, licuadora, taladro…" aria-label="Buscar producto" autofocus>
+      <button type="submit" class="go" id="go">Comparar</button>
+    </form>
+    <div class="kbd">Presioná <b>/</b> para buscar en cualquier momento</div>
+    <div class="chips" id="chips"></div>
+  </div>
 
-  <div id="out"></div>
+  <!-- Slot de patrocinio (subasta). Reservado en el layout; sin enlace hasta
+       que exista la página de ofertas, para no dejar un 404 a la vista. -->
+  <div class="sponsor" id="sponsor">
+    <span class="sponsor-tag">Patrocinado</span>
+    <span class="sponsor-txt"><b>Este espacio puede ser de tu tienda.</b> Subasta abierta próximamente.</span>
+  </div>
 
-  <section class="seo-links" aria-label="Comparaciones populares">
+  <main id="out" aria-live="polite" aria-busy="false"></main>
+
+  <section class="seo" aria-label="Comparaciones populares">
     <h2>Comparaciones populares</h2>
     <div class="seo-grid">
-      <a href="/comparar/televisores-samsung-guatemala">Precios televisores Samsung Guatemala</a>
-      <a href="/comparar/televisores-55-pulgadas-guatemala">Televisores 55 pulgadas Guatemala</a>
-      <a href="/comparar/lavadoras-guatemala">Comparar precios lavadoras Guatemala</a>
-      <a href="/comparar/lavadora-mabe-mas-barata-guatemala">Lavadora Mabe más barata Guatemala</a>
-      <a href="/comparar/taladro-dewalt-guatemala">Dónde comprar taladro DeWalt Guatemala</a>
-      <a href="/comparar/ps5-guatemala">Precios PS5 Guatemala</a>
-      <a href="/comparar/cafeteras-guatemala">Comparar cafeteras Guatemala</a>
-      <a href="/comparar/freidoras-de-aire-guatemala">Freidoras de aire Guatemala</a>
-      <a href="/comparar/secadoras-de-pelo-guatemala">Secadoras de pelo Guatemala</a>
-      <a href="/comparar/planchas-de-pelo-guatemala">Planchas de pelo Guatemala</a>
-      <a href="/comparar/owala-guatemala">Precios Owala Guatemala</a>
+      <a href="/comparar/televisores-samsung-guatemala">Televisores Samsung</a>
+      <a href="/comparar/televisores-55-pulgadas-guatemala">Televisores 55 pulgadas</a>
+      <a href="/comparar/lavadoras-guatemala">Lavadoras</a>
+      <a href="/comparar/lavadora-mabe-mas-barata-guatemala">Lavadora Mabe más barata</a>
+      <a href="/comparar/taladro-dewalt-guatemala">Taladro DeWalt</a>
+      <a href="/comparar/ps5-guatemala">PS5</a>
+      <a href="/comparar/cafeteras-guatemala">Cafeteras</a>
+      <a href="/comparar/freidoras-de-aire-guatemala">Freidoras de aire</a>
+      <a href="/comparar/secadoras-de-pelo-guatemala">Secadoras de pelo</a>
+      <a href="/comparar/planchas-de-pelo-guatemala">Planchas de pelo</a>
+      <a href="/comparar/owala-guatemala">Owala</a>
     </div>
   </section>
 
-  <footer>Motor: el mismo CLI <code>gt-compare</code> · <span id="storeCount">tiendas</span> en paralelo</footer>
+  <footer>
+    <span class="fmark">Compa <em>AI</em></span>
+    <span id="footNote">Precios en tiempo real · Guatemala</span>
+  </footer>
 </div>
 
 <script>
-const out = document.getElementById('out');
-const qEl = document.getElementById('q');
-const goEl = document.getElementById('go');
-const chipsEl = document.getElementById('chips');
-const bootEl = document.getElementById('boot');
-const storeCountEl = document.getElementById('storeCount');
+const out         = document.getElementById('out');
+const qEl         = document.getElementById('q');
+const q2El        = document.getElementById('q2');
+const goEl        = document.getElementById('go');
+const chipsEl     = document.getElementById('chips');
+const topbarEl    = document.getElementById('topbar');
+const heroEl      = document.getElementById('hero');
+const storeCountEl= document.getElementById('storeCount');
+
 let activeStore = null;
+let lastData    = null;
+let view        = 'store';   // 'store' = 1 por tienda | 'all' = todos
+let shownAll    = 15;
+const PAGE      = 15;
 
-if(sessionStorage.getItem('compaBootSeen') === '1'){
-  bootEl.remove();
-}else{
-  sessionStorage.setItem('compaBootSeen', '1');
-  setTimeout(()=>bootEl.remove(), 2500);
-}
+const fmt = n => 'Q' + Number(n).toLocaleString('es-GT', {minimumFractionDigits:2, maximumFractionDigits:2});
+const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const imgTag = (src,cls) => src
+  ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" onerror="this.classList.add('ph');this.removeAttribute('src');this.textContent='—'">`
+  : `<div class="${cls} ph">—</div>`;
 
-const fmt = n => 'Q' + n.toLocaleString('es-GT', {minimumFractionDigits:2, maximumFractionDigits:2});
+/* barra superior compacta al hacer scroll */
+const io = new IntersectionObserver(
+  ([e]) => topbarEl.classList.toggle('stuck', !e.isIntersecting),
+  {rootMargin:'-72px 0px 0px 0px'}
+);
+io.observe(heroEl);
+
+/* atajo "/" para enfocar el buscador */
+document.addEventListener('keydown', e=>{
+  if(e.key === '/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)){
+    e.preventDefault();
+    (topbarEl.classList.contains('stuck') ? q2El : qEl).focus();
+  }
+});
 
 async function loadStores(){
   try{
     const s = await (await fetch('/api/stores')).json();
-    storeCountEl.textContent = `${s.length} tiendas`;
-    chipsEl.innerHTML = '<div class="chip on" data-k="">Todas</div>' +
-      s.map(x=>`<div class="chip" data-k="${x.key}">${x.name}</div>`).join('');
+    storeCountEl.textContent = `${s.length} tiendas en paralelo`;
+    document.getElementById('footNote').textContent = `${s.length} tiendas · precios en tiempo real`;
+    chipsEl.innerHTML = `<button type="button" class="chip on" data-k="">Todas</button>` +
+      s.map(x=>`<button type="button" class="chip" data-k="${esc(x.key)}">${esc(x.name)}</button>`).join('');
     chipsEl.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
       chipsEl.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
-      c.classList.add('on'); activeStore = c.dataset.k || null;
+      c.classList.add('on');
+      activeStore = c.dataset.k || null;
       if(qEl.value.trim()) search();
     });
   }catch(e){}
 }
 
-let lastData = null;
-let view = 'store';   // 'store' = 1 por tienda | 'all' = todos los resultados
-let shownAll = 15;    // cuántos mostrar en la vista "Todos" (paginación cliente)
-const PAGE = 15;
-const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-const imgTag = (src,cls) => src
-  ? `<img class="${cls}" src="${esc(src)}" onerror="this.classList.add('ph');this.removeAttribute('src');this.textContent='—'">`
-  : `<div class="${cls} ph">—</div>`;
-
-function metaBar(ok){
-  const total = ok.reduce((n,r)=>n+(r.count||1),0);
-  let save = '';
-  if(ok.length>1){ const d = ok[ok.length-1].price - ok[0].price; if(d>0) save = `Ahorro vs. más caro: <span class="save">${fmt(d)}</span>`; }
-  return `<div class="meta">
-    <span>${total} resultado(s) en ${ok.length} tienda(s)</span>
-    <span style="display:flex;gap:12px;align-items:center">${save}
-      <span class="toggle">
-        <button data-v="store" class="${view==='store'?'on':''}">1 por tienda</button>
-        <button data-v="all" class="${view==='all'?'on':''}">Todos</button>
-      </span>
-    </span></div>`;
+function skeleton(){
+  let h = '<div class="rows" style="margin-top:44px">';
+  for(let i=0;i<6;i++){
+    h += `<div class="skel-row">
+      <div></div><div class="sk thumb" style="width:52px;height:52px"></div>
+      <div><div class="sk l1"></div><div class="sk l2"></div></div>
+      <div class="sk p"></div></div>`;
+  }
+  return h + '</div>';
 }
 
-function viewByStore(ok, cheapestKey){
-  let h = '<div class="results">';
+function head(query, ok, cheapestPrice){
+  const total = ok.reduce((n,r)=>n+(r.count||1),0);
+  const prices = ok.map(r=>r.price).filter(Boolean);
+  let savings = '';
+  if(prices.length>1){
+    const d = Math.max(...prices) - Math.min(...prices);
+    if(d>0) savings = `Diferencia entre la más cara y la más barata: <b>${fmt(d)}</b>`;
+  }
+  return `<div class="results-head">
+      <h2>${esc(query)}</h2>
+      <span class="sum">${total} resultado${total===1?'':'s'} · ${ok.length} tienda${ok.length===1?'':'s'}</span>
+    </div>
+    <div class="toolbar">
+      <span class="savings">${savings}</span>
+      <span class="seg">
+        <button type="button" data-v="store" class="${view==='store'?'on':''}">Una por tienda</button>
+        <button type="button" data-v="all" class="${view==='all'?'on':''}">Todos los precios</button>
+      </span>
+    </div>`;
+}
+
+function rowHtml(o, i, best, cheapestPrice, storeClass){
+  const diff = (!best && cheapestPrice && o.price > cheapestPrice)
+    ? `<div class="delta">+${fmt(o.price - cheapestPrice)}</div>` : '';
+  const note = o.store_key === 'pricesmart' ? ' · puede variar por club' : '';
+  const extra = o.count > 1 ? ` · ${o.count} relevantes` : '';
+  return `<a class="row ${best?'best':''}" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${Math.min(i,14)*35}ms">
+    <div class="rank">${i+1}</div>${imgTag(o.image,'thumb')}
+    <div class="info">
+      <div class="${storeClass}">${esc(o.store)}</div>
+      <div class="pname">${esc(o.name)}</div>
+      <div class="stock ${o.available?'':'no'}">${o.available?'Disponible':'Agotado'}${extra}${note}</div>
+    </div>
+    <div class="right">
+      <div class="price">${fmt(o.price)}</div>
+      ${best?'<div class="tagbest">Más barato</div>':diff}
+    </div>
+  </a>`;
+}
+
+function viewByStore(ok, cheapestKey, cheapestPrice){
+  let h = '<div class="rows">';
   ok.forEach((r,i)=>{
     const best = r.store_key === cheapestKey;
+    h += rowHtml(r, i, best, cheapestPrice, 'store');
     const extra = (r.items||[]).length - 1;
-    const storeNote = r.store_key === 'pricesmart' ? ' · puede variar por club' : '';
-    h += `<a class="card ${best?'best':''}" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${i*40}ms">
-      <div class="rank">${i+1}</div>${imgTag(r.image,'thumb')}
-      <div class="info"><div class="store">${esc(r.store)}</div><div class="pname">${esc(r.name)}</div>
-        <div class="stock ${r.available?'':'no'}">${r.available?'Disponible':'Agotado'}${r.count>1?` · ${r.count} relevantes`:''}${storeNote}</div></div>
-      <div class="right"><div class="price">${fmt(r.price)}</div>${best?'<div class="badge">MÁS BARATO</div>':''}</div>
-    </a>`;
     if(extra>0){
       const subs = (r.items||[]).slice(1).map(p=>
         `<a class="subrow" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer"><span class="sname">${esc(p.name)}</span><span class="sprice">${fmt(p.price)}</span></a>`).join('');
-      h += `<button class="more" data-store="${r.store_key}">Ver ${extra} resultado(s) más de ${esc(r.store)} ▾</button>
-            <div class="sub" id="sub-${r.store_key}" style="display:none">${subs}</div>`;
+      h += `<button type="button" class="more" data-store="${esc(r.store_key)}" aria-expanded="false" aria-label="Ver ${extra} ${extra===1?'opción':'opciones'} más en ${esc(r.store)}">${extra} ${extra===1?'opción':'opciones'} más ↓</button>
+            <div class="sub" id="sub-${esc(r.store_key)}">${subs}</div>`;
     }
   });
-  h += '</div>';
-  return h;
+  return h + '</div>';
 }
 
 function viewAll(ok){
   const flat = [];
-  ok.forEach(r => (r.items||[]).forEach(p => flat.push({...p, store:r.store})));
+  ok.forEach(r => (r.items||[]).forEach(p => flat.push({...p, store:r.store, store_key:r.store_key})));
   flat.sort((a,b)=>{
     if(Boolean(a.available) !== Boolean(b.available)) return a.available ? -1 : 1;
-    return a.price-b.price;
+    return a.price - b.price;
   });
+  const cheapestPrice = flat.length ? flat[0].price : null;
   const shown = flat.slice(0, shownAll);
-  let h = '<div class="results">';
-  shown.forEach((p,i)=>{
-    const best = i===0;
-    h += `<a class="card ${best?'best':''}" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${Math.min(i,15)*30}ms">
-      <div class="rank">${i+1}</div>${imgTag(p.image,'thumb')}
-      <div class="info"><div class="gstore">${esc(p.store)}</div><div class="pname">${esc(p.name)}</div>
-        <div class="stock ${p.available?'':'no'}">${p.available?'Disponible':'Agotado'}</div></div>
-      <div class="right"><div class="price">${fmt(p.price)}</div>${best?'<div class="badge">MÁS BARATO</div>':''}</div>
-    </a>`;
-  });
+  let h = '<div class="rows">';
+  shown.forEach((p,i)=>{ h += rowHtml(p, i, i===0, cheapestPrice, 'store'); });
   h += '</div>';
   const rest = flat.length - shown.length;
-  if(rest>0) h += `<button class="loadmore" id="loadmore">Cargar más (${rest} restantes)</button>`;
+  if(rest>0) h += `<button type="button" class="loadmore" id="loadmore">Ver ${rest} precio${rest===1?'':'s'} más</button>`;
   return h;
+}
+
+function missesHtml(fail){
+  if(!fail.length) return '';
+  const items = fail.map(r=>{
+    const why = r.found_without_price
+      ? `encontrado, sin precio público${r.count?` (${r.count})`:''}`
+      : esc(r.error||'sin resultados');
+    return `<div class="miss"><span class="mstore">${esc(r.store)}</span><span class="mwhy">${why}</span></div>`;
+  }).join('');
+  return `<section class="misses"><div class="misses-h">Sin coincidencia</div>${items}</section>`;
 }
 
 function render(data){
   lastData = data;
-  if(!data.results.length){ out.innerHTML = `<div class="empty">Sin resultados para “${esc(data.query)}”.</div>`; return; }
-  const ok = data.results.filter(r=>r.ok);
+  const ok   = data.results.filter(r=>r.ok);
   const fail = data.results.filter(r=>!r.ok);
-  let html = ok.length ? metaBar(ok) : '';
-  html += view==='all' ? viewAll(ok) : viewByStore(ok, data.cheapest);
-  if(fail.length){
-    html += '<div class="results" style="margin-top:12px">';
-    fail.forEach(r=>{
-      const msg = r.found_without_price
-        ? `Producto encontrado, pero sin precio público${r.count?` · ${r.count} relevante(s)`:''}`
-        : `No disponible (${esc(r.error)})`;
-      html += `<div class="card fail"><div class="rank">·</div><div class="thumb ph">×</div>
-      <div class="info"><div class="store">${esc(r.store)}</div><div class="pname">${msg}</div></div></div>`;
-    });
-    html += '</div>';
-  }
-  out.innerHTML = html;
 
-  out.querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{ view=b.dataset.v; shownAll=PAGE; render(lastData); });
+  if(!ok.length){
+    out.innerHTML = `<div class="state">
+        <h3>Nada encontrado</h3>
+        <p>No hubo coincidencias para “${esc(data.query)}” en las tiendas que revisamos. Probá con un término más corto, por ejemplo solo la categoría o la marca.</p>
+      </div>${missesHtml(fail)}`;
+    return;
+  }
+
+  const cheapestRow  = ok.find(r=>r.store_key === data.cheapest) || ok[0];
+  const cheapestPrice= cheapestRow ? cheapestRow.price : null;
+
+  out.innerHTML = head(data.query, ok, cheapestPrice)
+    + (view==='all' ? viewAll(ok) : viewByStore(ok, data.cheapest, cheapestPrice))
+    + missesHtml(fail);
+
+  out.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{
+    view = b.dataset.v; shownAll = PAGE; render(lastData);
+  });
   const lm = document.getElementById('loadmore');
   if(lm) lm.onclick = ()=>{ shownAll += PAGE; render(lastData); };
   out.querySelectorAll('.more').forEach(b=>b.onclick=()=>{
     const el = document.getElementById('sub-'+b.dataset.store);
-    const open = el.style.display!=='none';
-    el.style.display = open?'none':'flex';
-    b.textContent = b.textContent.replace(open?'▴':'▾', open?'▾':'▴');
+    const open = el.classList.toggle('open');
+    b.setAttribute('aria-expanded', String(open));
+    b.textContent = b.textContent.replace(open?'↓':'↑', open?'↑':'↓');
   });
 }
 
-async function search(){
+async function search(pushUrl = true){
   const q = qEl.value.trim();
   if(!q) return;
+  q2El.value = q;
   shownAll = PAGE;
-  out.innerHTML = '<div class="spinner"></div>';
-  goEl.disabled = true; goEl.textContent = '…';
+  out.setAttribute('aria-busy','true');
+  out.innerHTML = skeleton();
+  goEl.disabled = true;
+  if(pushUrl){
+    const u = new URL(location.href);
+    u.searchParams.set('q', q);
+    history.replaceState(null, '', u);
+  }
   try{
-    const url = '/api/search?q=' + encodeURIComponent(q) + (activeStore?('&store='+activeStore):'');
+    const url = '/api/search?q=' + encodeURIComponent(q) + (activeStore?('&store='+encodeURIComponent(activeStore)):'');
     const res = await fetch(url);
     if(res.status === 429){
-      out.innerHTML = `<div class="empty">Muchas búsquedas seguidas. Probá otra vez en un minuto.</div>`;
+      out.innerHTML = `<div class="state"><h3>Demasiadas búsquedas</h3>
+        <p>Hiciste varias búsquedas muy seguidas. Esperá un minuto y volvé a intentar.</p></div>`;
       return;
     }
-    const data = await res.json();
-    render(data);
+    if(!res.ok) throw new Error('http ' + res.status);
+    render(await res.json());
   }catch(e){
-    out.innerHTML = `<div class="empty">Error consultando las tiendas.</div>`;
+    out.innerHTML = `<div class="state"><h3>No pudimos consultar las tiendas</h3>
+      <p>Puede ser tu conexión o una tienda que no respondió. Volvé a intentar en unos segundos.</p>
+      <button type="button" class="go" onclick="search(false)">Reintentar</button></div>`;
   }finally{
-    goEl.disabled = false; goEl.textContent = 'Buscar';
+    out.setAttribute('aria-busy','false');
+    goEl.disabled = false;
   }
 }
 
 document.getElementById('form').addEventListener('submit', e=>{ e.preventDefault(); search(); });
+document.getElementById('form2').addEventListener('submit', e=>{
+  e.preventDefault(); qEl.value = q2El.value; search();
+});
+
 loadStores();
+
+/* búsqueda compartible por URL: /?q=televisor+samsung */
+const initial = new URLSearchParams(location.search).get('q');
+if(initial){ qEl.value = initial; search(false); }
 </script>
 </body>
 </html>
