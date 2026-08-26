@@ -217,6 +217,41 @@ _ACCESSORY = {
     "deflector", "deflectores", "escudo", "escudos", "cubierta", "cubiertas",
     "manguera", "mangueras", "valvula", "valvulas", "sensor", "sensores",
     "termostato", "termostatos", "instalacion", "mantenimiento", "limpieza",
+    "stand", "stands", "empaque", "empaques", "empaquetadura",
+}
+
+# Marcadores de juguete. La versión de juguete de un aparato ("Winfun Laptop
+# Unicornio", "Laptop Kids Montessori juguete") gana siempre el puesto de "más
+# barato" y arruina el resultado principal. Namespaced: solo se aplica cuando la
+# query pide un aparato de estas categorías y el usuario no pidió un juguete.
+_TOY_MARKERS = {
+    "juguete", "juguetes", "toy", "toys", "juguetero", "juguetera",
+    "didactico", "didactica", "infantil", "infantiles", "montessori",
+    "winfun", "kids", "junior", "preescolar",
+}
+_TOY_SENSITIVE_ANCHORS = (
+    "televisor", "laptop", "celular", "licuadora", "refrigeradora",
+    "lavadora", "microondas", "aspiradora", "cafetera", "freidora",
+)
+_TOY_SENSITIVE_TOKENS: set[str] = set().union(
+    *(next(g for g in _SYN_GROUPS if anchor in g) for anchor in _TOY_SENSITIVE_ANCHORS)
+)
+
+# "portatil" es adjetivo, no sustantivo: está en el grupo de sinónimos de laptop
+# porque "Computadora Portátil" sí es una laptop, pero eso hace que "Mesa
+# portátil de computadora" o "Estación de energía portátil" también califiquen.
+# Si el título nombra otra categoría de producto, no es una laptop.
+_LAPTOP_TOKENS = next(g for g in _SYN_GROUPS if "laptop" in g)
+# Solo sustantivos de categoría que prácticamente nunca aparecen en el título de
+# una laptop real. Deliberadamente NO se incluyen "pantalla", "teclado" ni
+# "bateria": son specs legítimas ("teclado retroiluminado", "pantalla 15.6\"").
+_LAPTOP_EXCLUDE = {
+    "mesa", "mesas", "escritorio", "escritorios", "silla", "sillas",
+    "monitor", "monitores", "proyector", "proyectores",
+    "estacion", "estaciones", "powerbank", "inversor", "inversores",
+    "generador", "generadores", "impresora", "impresoras", "escaner",
+    "bocina", "bocinas", "ventilador", "ventiladores",
+    "enfriador", "enfriadores", "cooler",
 }
 
 # "pantalla" es sinónimo de "televisor" (real: "Pantalla Samsung 75\" LED"),
@@ -578,6 +613,22 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
         is_tv_query = bool(set(original_qtoks) & _TV_TOKENS)
         wants_wearable = bool(set(original_qtoks) & _WEARABLE_EXCLUDE)
         if is_tv_query and not wants_wearable and (_WEARABLE_EXCLUDE & name_toks):
+            return False
+        # La versión de juguete de un aparato siempre gana el puesto de "más
+        # barato" y desprestigia el resultado principal.
+        qtok_set = set(original_qtoks)
+        if (
+            qtok_set & _TOY_SENSITIVE_TOKENS
+            and not (qtok_set & _TOY_MARKERS)
+            and (_TOY_MARKERS & name_toks)
+        ):
+            return False
+        # "portatil" es adjetivo: si el título nombra otra categoría, no es laptop.
+        if (
+            qtok_set & _LAPTOP_TOKENS
+            and not (qtok_set & _LAPTOP_EXCLUDE)
+            and (_LAPTOP_EXCLUDE & name_toks)
+        ):
             return False
         # Regla general: "<algo> para <producto>" es un accesorio PARA el
         # producto, no el producto (Motor para Licuadora, Soporte para
