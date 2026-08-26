@@ -246,10 +246,6 @@
     font-variant-numeric:tabular-nums;
   }
   .best .price{color:var(--emerald)}
-  .delta{
-    font-size:12px;color:var(--faint);margin-top:3px;
-    font-variant-numeric:tabular-nums;
-  }
   .tagbest{
     display:inline-block;margin-top:4px;font-size:9.5px;font-weight:600;
     letter-spacing:.1em;text-transform:uppercase;color:var(--emerald);
@@ -300,6 +296,67 @@
     font-weight:600;color:var(--ink-2);min-width:118px;
   }
   .miss .mwhy{color:var(--faint)}
+
+  /* ---------- mismo modelo, distinto precio ---------- */
+  .samemodel{margin:36px 0 0}
+  .samemodel-h{
+    font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:12px;
+  }
+  .mg{
+    border:1px solid var(--rule-2);border-radius:var(--radius);background:var(--white);
+    padding:16px 18px;margin-bottom:10px;
+  }
+  .mg-top{
+    display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    padding-bottom:12px;margin-bottom:4px;border-bottom:1px solid var(--rule-2);
+  }
+  .mg-name{font-size:14px;font-weight:600;letter-spacing:-.01em;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mg-name span{
+    font-weight:400;color:var(--faint);font-size:12.5px;margin-left:7px;
+    font-variant-numeric:tabular-nums;
+  }
+  .mg-save{
+    flex:none;font-size:13px;color:var(--emerald);font-weight:600;
+    font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+  .mg-row{
+    display:flex;align-items:center;gap:12px;padding:9px 10px;margin:0 -10px;
+    border-radius:9px;text-decoration:none;color:inherit;transition:background .16s var(--ease);
+  }
+  .mg-row:hover{background:var(--wash)}
+  .mg-store{
+    flex:1;min-width:0;font-size:13px;color:var(--ink-2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .mg-row.low .mg-store{font-weight:600}
+  .mg-price{
+    flex:none;font-size:14.5px;font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .mg-row.low .mg-price{color:var(--emerald)}
+  .mg-diff{
+    flex:none;width:82px;text-align:right;font-size:12px;color:var(--faint);
+    font-variant-numeric:tabular-nums;
+  }
+  .mg-row.low .mg-diff{color:var(--emerald);font-weight:600}
+  @media (max-width:560px){
+    /* align-items:baseline heredado NO estira los hijos en columna, y el
+       nombre (nowrap) se desbordaba fuera del viewport. */
+    .mg-top{flex-direction:column;gap:4px;align-items:stretch}
+    .mg-name{width:100%}
+    .mg-diff{width:64px}
+  }
+
+  /* chip de especificación: deja ver que dos filas NO son el mismo aparato */
+  .spec{
+    display:inline-block;margin-left:7px;font-size:10px;font-weight:600;
+    letter-spacing:.04em;color:var(--muted);background:var(--wash);
+    border-radius:4px;padding:1px 5px;vertical-align:1px;
+    font-variant-numeric:tabular-nums;
+  }
+  .best .spec{background:rgba(10,107,71,.1);color:var(--emerald)}
+  .note{font-size:12.5px;color:var(--faint);margin-top:2px}
 
   /* ---------- skeleton ---------- */
   .skel-row{
@@ -505,20 +562,23 @@ function skeleton(){
   return h + '</div>';
 }
 
-function head(query, ok, cheapestPrice){
+function head(query, ok){
   const total = ok.reduce((n,r)=>n+(r.count||1),0);
-  const prices = ok.map(r=>r.price).filter(Boolean);
-  let savings = '';
-  if(prices.length>1){
-    const d = Math.max(...prices) - Math.min(...prices);
-    if(d>0) savings = `Diferencia entre la más cara y la más barata: <b>${fmt(d)}</b>`;
-  }
   return `<div class="results-head">
       <h2>${esc(query)}</h2>
       <span class="sum">${total} resultado${total===1?'':'s'} · ${ok.length} tienda${ok.length===1?'':'s'}</span>
-    </div>
-    <div class="toolbar">
-      <span class="savings">${savings}</span>
+    </div>`;
+}
+
+function toolbar(){
+  // Antes iba aquí la "diferencia entre la más cara y la más barata", pero esas
+  // dos filas suelen ser productos distintos (un 32" contra un 75"), así que el
+  // número no significaba nada. La comparación real vive en modelGroupsHtml.
+  const note = view === 'store'
+    ? 'El más barato de cada tienda. Pueden ser modelos distintos.'
+    : 'Todas las ofertas encontradas, de menor a mayor precio.';
+  return `<div class="toolbar">
+      <span class="savings">${note}</span>
       <span class="seg">
         <button type="button" data-v="store" class="${view==='store'?'on':''}">Una por tienda</button>
         <button type="button" data-v="all" class="${view==='all'?'on':''}">Todos los precios</button>
@@ -526,30 +586,58 @@ function head(query, ok, cheapestPrice){
     </div>`;
 }
 
-function rowHtml(o, i, best, cheapestPrice, storeClass){
-  const diff = (!best && cheapestPrice && o.price > cheapestPrice)
-    ? `<div class="delta">+${fmt(o.price - cheapestPrice)}</div>` : '';
+/* El hallazgo que justifica el sitio: el MISMO modelo a precios distintos. */
+function modelGroupsHtml(groups){
+  if(!groups || !groups.length) return '';
+  const blocks = groups.map(g=>{
+    const low = g.offers[0].price;
+    const rows = g.offers.map((o,i)=>`
+      <a class="mg-row ${i===0?'low':''}" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">
+        <span class="mg-store">${esc(o.store)}</span>
+        <span class="mg-price">${fmt(o.price)}</span>
+        <span class="mg-diff">${i===0 ? 'más barato' : '+'+fmt(o.price-low)}</span>
+      </a>`).join('');
+    // El título de la tienda suele terminar en el propio código de modelo; no
+    // vale la pena repetirlo al lado.
+    const shown = (g.offers[0].name||'').toUpperCase();
+    const code = shown.includes((g.model||'').toUpperCase()) ? '' : g.model;
+    const tag = [code, g.size ? (+g.size)+'"' : ''].filter(Boolean).join(' · ');
+    return `<div class="mg">
+      <div class="mg-top">
+        <div class="mg-name">${esc(g.offers[0].name)}<span>${esc(tag)}</span></div>
+        <div class="mg-save">Ahorrás ${fmt(g.spread)}</div>
+      </div>${rows}</div>`;
+  }).join('');
+  return `<section class="samemodel">
+      <div class="samemodel-h">Mismo modelo, distinto precio</div>${blocks}
+    </section>`;
+}
+
+function rowHtml(o, i, best, storeClass){
   const note = o.store_key === 'pricesmart' ? ' · puede variar por club' : '';
   const extra = o.count > 1 ? ` · ${o.count} relevantes` : '';
+  // El tamaño hace evidente que dos filas no son el mismo aparato. Sustituye al
+  // "+QX" anterior, que restaba precios de productos diferentes.
+  const spec = o.size ? `<span class="spec">${+o.size}"</span>` : '';
   return `<a class="row ${best?'best':''}" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${Math.min(i,14)*35}ms">
     <div class="rank">${i+1}</div>${imgTag(o.image,'thumb')}
     <div class="info">
-      <div class="${storeClass}">${esc(o.store)}</div>
+      <div class="${storeClass}">${esc(o.store)}${spec}</div>
       <div class="pname">${esc(o.name)}</div>
       <div class="stock ${o.available?'':'no'}">${o.available?'Disponible':'Agotado'}${extra}${note}</div>
     </div>
     <div class="right">
       <div class="price">${fmt(o.price)}</div>
-      ${best?'<div class="tagbest">Más barato</div>':diff}
+      ${best?'<div class="tagbest">Precio más bajo</div>':''}
     </div>
   </a>`;
 }
 
-function viewByStore(ok, cheapestKey, cheapestPrice){
+function viewByStore(ok, cheapestKey){
   let h = '<div class="rows">';
   ok.forEach((r,i)=>{
     const best = r.store_key === cheapestKey;
-    h += rowHtml(r, i, best, cheapestPrice, 'store');
+    h += rowHtml(r, i, best, 'store');
     const extra = (r.items||[]).length - 1;
     if(extra>0){
       const subs = (r.items||[]).slice(1).map(p=>
@@ -568,10 +656,9 @@ function viewAll(ok){
     if(Boolean(a.available) !== Boolean(b.available)) return a.available ? -1 : 1;
     return a.price - b.price;
   });
-  const cheapestPrice = flat.length ? flat[0].price : null;
   const shown = flat.slice(0, shownAll);
   let h = '<div class="rows">';
-  shown.forEach((p,i)=>{ h += rowHtml(p, i, i===0, cheapestPrice, 'store'); });
+  shown.forEach((p,i)=>{ h += rowHtml(p, i, i===0, 'store'); });
   h += '</div>';
   const rest = flat.length - shown.length;
   if(rest>0) h += `<button type="button" class="loadmore" id="loadmore">Ver ${rest} precio${rest===1?'':'s'} más</button>`;
@@ -602,11 +689,10 @@ function render(data){
     return;
   }
 
-  const cheapestRow  = ok.find(r=>r.store_key === data.cheapest) || ok[0];
-  const cheapestPrice= cheapestRow ? cheapestRow.price : null;
-
-  out.innerHTML = head(data.query, ok, cheapestPrice)
-    + (view==='all' ? viewAll(ok) : viewByStore(ok, data.cheapest, cheapestPrice))
+  out.innerHTML = head(data.query, ok)
+    + modelGroupsHtml(data.model_groups)
+    + toolbar()
+    + (view==='all' ? viewAll(ok) : viewByStore(ok, data.cheapest))
     + missesHtml(fail);
 
   out.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{

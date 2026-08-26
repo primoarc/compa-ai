@@ -22,7 +22,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-from . import planner, relevance, vtex
+from . import matching, planner, relevance, vtex
 from .stores import load_stores
 
 app = FastAPI(title="Compa AI", docs_url=None, redoc_url=None)
@@ -34,6 +34,7 @@ TIMEOUT = 8
 
 
 MAX_ITEMS = 24  # tope de productos por tienda que devolvemos al front
+MAX_MODEL_GROUPS = 3  # grupos "mismo modelo, distinto precio" que destacamos
 
 SITE_URL = "https://gt-compare.vercel.app"
 RATE_LIMIT_WINDOW_SECONDS = 60
@@ -202,6 +203,9 @@ def _prod_dict(p) -> dict:
         "available": p.available > 0,
         "url": p.url,
         "image": p.image,
+        # Diagonal declarada en el título. El front la muestra como chip para
+        # que se vea de una que dos filas no son el mismo aparato.
+        "size": matching.screen_size(p.name),
     }
 
 
@@ -315,6 +319,26 @@ async def _search_rows(
     return plan, rows, cheapest
 
 
+def _model_groups(rows: list[dict]) -> list[dict]:
+    """Ofertas del MISMO modelo en tiendas distintas.
+
+    Es la comparación que de verdad justifica el sitio: el mismo televisor a
+    Q1,397 en una tienda y a Q2,399 en otra. Se arma sobre todas las ofertas,
+    no solo sobre la más barata de cada tienda, porque el modelo compartido
+    puede no ser el producto más barato de esa tienda.
+    """
+    offers: list[dict] = []
+    for row in rows:
+        for item in row.get("items") or []:
+            if item.get("price"):
+                offers.append({
+                    **item,
+                    "store": row.get("store"),
+                    "store_key": row.get("store_key"),
+                })
+    return matching.group_offers(offers)[:MAX_MODEL_GROUPS]
+
+
 @app.get("/api/search")
 async def api_search(request: Request, q: str, store: Optional[str] = None) -> JSONResponse:
     _check_rate_limit(request)
@@ -329,6 +353,7 @@ async def api_search(request: Request, q: str, store: Optional[str] = None) -> J
         "planner": plan.source,
         "results": rows,
         "cheapest": cheapest,
+        "model_groups": _model_groups(rows),
     })
 
 
