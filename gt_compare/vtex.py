@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from urllib.parse import quote
 
 import httpx
@@ -62,6 +62,9 @@ class StoreResult:
     products: list[Product]
     ok: bool
     error: str | None = None
+    # Edad en segundos si estos productos vienen del último snapshot conocido
+    # en vez de una consulta en vivo. None = en vivo.
+    stale_age: int | None = None
 
 
 def _dedupe_products(products: list[Product]) -> list[Product]:
@@ -242,4 +245,43 @@ async def search_all(
                 tasks.append(_search_with_aliases(scraper.fetch_woocommerce, client, s, query, plan=plan, **kw))
             else:
                 tasks.append(_search_with_aliases(scraper.search_store, client, s, query, plan=plan, **kw))
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+
+    return [_with_last_known(r, query, use_cache=use_cache) for r in results]
+
+
+# Cuánto se acepta servir un precio guardado cuando la tienda no responde.
+# Más allá de esto preferimos declarar la tienda caída: un precio de ayer
+# todavía orienta, uno de la semana pasada engaña.
+STALE_MAX_AGE_SECONDS = 6 * 60 * 60
+
+
+def _snapshot_key(store_key: str, query: str) -> str:
+    return cache.make_key(store_key, query) + "::snapshot"
+
+
+def _with_last_known(res: StoreResult, query: str, *, use_cache: bool) -> StoreResult:
+    """Guarda el último resultado bueno de cada tienda y lo usa si falla.
+
+    En Vercel el caché en disco vive en /tmp, que es efímero y por instancia,
+    así que en la práctica cada arranque en frío vuelve a consultar las 13
+    tiendas. Kemik responde 429 a esas ráfagas y desaparecía del comparador
+    justo cuando solía ser el más barato. Con esto la tienda sigue apareciendo,
+    etiquetada con la antigüedad del dato.
+    """
+    if not use_cache:
+        return res
+    key = _snapshot_key(res.store.key, query)
+    if res.ok and res.products:
+        cache.set(key, [asdict(p) for p in res.products])
+        return res
+    if res.ok:
+        return res  # respondió bien pero sin coincidencias: no es una caída
+    data, age = cache.get_stale(key, STALE_MAX_AGE_SECONDS)
+    if not data:
+        return res
+    try:
+        products = [Product(**d) for d in data]
+    except TypeError:
+        return res
+    return StoreResult(res.store, products, ok=True, stale_age=age)

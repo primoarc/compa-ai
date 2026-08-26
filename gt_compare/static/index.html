@@ -240,6 +240,7 @@
   }
   .stock{font-size:11.5px;color:var(--faint);margin-top:5px}
   .stock.no{color:var(--amber)}
+  .stale{color:var(--amber)}
   .right{text-align:right;white-space:nowrap}
   .price{
     font-size:19px;font-weight:600;letter-spacing:-.02em;
@@ -515,6 +516,13 @@ let shownAll    = 15;
 const PAGE      = 15;
 
 const fmt = n => 'Q' + Number(n).toLocaleString('es-GT', {minimumFractionDigits:2, maximumFractionDigits:2});
+const ago = sec => {
+  const m = Math.round(sec/60);
+  if(m < 2)  return 'precio guardado hace un momento';
+  if(m < 60) return `precio guardado hace ${m} min`;
+  const h = Math.round(m/60);
+  return `precio guardado hace ${h} h`;
+};
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const imgTag = (src,cls) => src
   ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" onerror="this.classList.add('ph');this.removeAttribute('src');this.textContent='—'">`
@@ -616,6 +624,8 @@ function modelGroupsHtml(groups){
 function rowHtml(o, i, best, storeClass){
   const note = o.store_key === 'pricesmart' ? ' · puede variar por club' : '';
   const extra = o.count > 1 ? ` · ${o.count} relevantes` : '';
+  // La tienda no respondió y estamos mostrando el último precio conocido.
+  const stale = o.stale_age != null ? ` · <span class="stale">${ago(o.stale_age)}</span>` : '';
   // El tamaño hace evidente que dos filas no son el mismo aparato. Sustituye al
   // "+QX" anterior, que restaba precios de productos diferentes.
   const spec = o.size ? `<span class="spec">${+o.size}"</span>` : '';
@@ -624,7 +634,7 @@ function rowHtml(o, i, best, storeClass){
     <div class="info">
       <div class="${storeClass}">${esc(o.store)}${spec}</div>
       <div class="pname">${esc(o.name)}</div>
-      <div class="stock ${o.available?'':'no'}">${o.available?'Disponible':'Agotado'}${extra}${note}</div>
+      <div class="stock ${o.available?'':'no'}">${o.available?'Disponible':'Agotado'}${extra}${note}${stale}</div>
     </div>
     <div class="right">
       <div class="price">${fmt(o.price)}</div>

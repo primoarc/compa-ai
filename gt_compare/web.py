@@ -36,6 +36,17 @@ TIMEOUT = 8
 MAX_ITEMS = 24  # tope de productos por tienda que devolvemos al front
 MAX_MODEL_GROUPS = 3  # grupos "mismo modelo, distinto precio" que destacamos
 
+# Caché compartido en el CDN de Vercel. En serverless el caché en disco vive en
+# /tmp: es efímero y por instancia, así que cada arranque en frío reconsultaba
+# las 13 tiendas y Kemik nos empezó a devolver 429. La red de borde sí es
+# compartida entre todos los usuarios e instancias, no hay que aprovisionar
+# nada y evita la mayoría de las consultas al origen.
+#   max-age=0        -> el navegador siempre revalida (el usuario ve lo actual)
+#   s-maxage         -> el CDN sirve la misma respuesta a todo el mundo
+#   stale-while-revalidate -> responde al instante mientras refresca por detrás
+SEARCH_CACHE_CONTROL = "public, max-age=0, s-maxage=600, stale-while-revalidate=3600"
+PAGE_CACHE_CONTROL = "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400"
+
 SITE_URL = "https://gt-compare.vercel.app"
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_PER_MINUTE = int(os.getenv("GT_COMPARE_RATE_LIMIT_PER_MINUTE", "80"))
@@ -239,6 +250,10 @@ def _best_per_store(query: str, results: list[vtex.StoreResult], plan=None) -> l
                 "ok": True,
                 "count": len(priced),
                 "items": items,
+                # Si la tienda no respondió y estamos sirviendo el último
+                # snapshot, el front lo etiqueta. Un precio guardado presentado
+                # como si fuera en vivo sería peor que no mostrarlo.
+                "stale_age": res.stale_age,
                 **items[0],  # el más barato como cabecera de la fila
             })
         elif relevant_all:
@@ -347,14 +362,17 @@ async def api_search(request: Request, q: str, store: Optional[str] = None) -> J
         return JSONResponse({"query": q, "results": [], "cheapest": None})
     plan, rows, cheapest = await _search_rows(q, store=store)
     _log_search(q, store, rows, cheapest)
-    return JSONResponse({
-        "query": q,
-        "normalized_query": plan.canonical_query,
-        "planner": plan.source,
-        "results": rows,
-        "cheapest": cheapest,
-        "model_groups": _model_groups(rows),
-    })
+    return JSONResponse(
+        {
+            "query": q,
+            "normalized_query": plan.canonical_query,
+            "planner": plan.source,
+            "results": rows,
+            "cheapest": cheapest,
+            "model_groups": _model_groups(rows),
+        },
+        headers={"Cache-Control": SEARCH_CACHE_CONTROL},
+    )
 
 
 @app.get("/api/stores")
@@ -393,7 +411,10 @@ async def seo_compare(slug: str) -> HTMLResponse:
     if page is None:
         return HTMLResponse(_not_found_html(), status_code=404)
     plan, rows, cheapest = await _search_rows(page.query, use_openai_plan=False)
-    return HTMLResponse(_seo_page_html(page, rows, cheapest, plan.source))
+    return HTMLResponse(
+        _seo_page_html(page, rows, cheapest, plan.source),
+        headers={"Cache-Control": PAGE_CACHE_CONTROL},
+    )
 
 
 @app.get("/sitemap.xml")

@@ -43,6 +43,29 @@ def get(key: str, ttl_seconds: int) -> Any | None:
     return blob.get("data")
 
 
+def get_stale(key: str, max_age_seconds: int) -> tuple:
+    """Devuelve (data, edad_en_segundos) aunque la entrada ya haya expirado.
+
+    Se usa como red de seguridad cuando una tienda falla (p. ej. Kemik nos
+    devuelve 429 desde las IPs de Vercel): es preferible mostrar el último
+    precio conocido y decir de cuándo es, a que la tienda desaparezca del
+    comparador. Por encima de `max_age_seconds` se descarta: un precio viejo
+    deja de ser información y pasa a ser desinformación.
+    """
+    path = _key_to_path(key)
+    if not path.exists():
+        return (None, 0)
+    try:
+        with path.open(encoding="utf-8") as fh:
+            blob = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return (None, 0)
+    age = time.time() - blob.get("ts", 0)
+    if age > max_age_seconds:
+        return (None, 0)
+    return (blob.get("data"), int(age))
+
+
 def set(key: str, data: Any) -> None:
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
