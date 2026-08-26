@@ -83,6 +83,11 @@ def _dedupe_products(products: list[Product]) -> list[Product]:
     return deduped
 
 
+# Con esta cantidad de coincidencias relevantes en la primera consulta ya no
+# hace falta ampliar la búsqueda con variantes.
+ENOUGH_RELEVANT = 5
+
+
 async def _search_with_aliases(
     fetcher,
     client,
@@ -98,9 +103,24 @@ async def _search_with_aliases(
     if len(queries) <= 1:
         return await fetcher(client, store, query, **kw)
 
-    results = await asyncio.gather(
-        *(fetcher(client, store, q, **kw) for q in queries)
+    # Antes se disparaban TODAS las variantes en paralelo contra la misma
+    # tienda: "televisor samsung" son tres peticiones simultáneas a un mismo
+    # host, y así es como Kemik nos empezó a responder 429. Se consulta primero
+    # la frase completa y solo se amplía si hizo falta, que es el caso para el
+    # que se agregaron las variantes (buscadores que no cruzan bien dos
+    # palabras). En la mayoría de búsquedas esto es una sola petición.
+    first = await fetcher(client, store, queries[0], **kw)
+    if first.ok:
+        relevantes = sum(
+            1 for p in first.products if relevance.is_relevant(query, p.name)
+        )
+        if relevantes >= ENOUGH_RELEVANT:
+            return first
+
+    rest = await asyncio.gather(
+        *(fetcher(client, store, q, **kw) for q in queries[1:])
     )
+    results = [first, *rest]
     ok_results = [r for r in results if r.ok]
     if not ok_results:
         return results[0]

@@ -46,6 +46,22 @@ MAX_MODEL_GROUPS = 3  # grupos "mismo modelo, distinto precio" que destacamos
 #   stale-while-revalidate -> responde al instante mientras refresca por detrás
 SEARCH_CACHE_CONTROL = "public, max-age=0, s-maxage=600, stale-while-revalidate=3600"
 PAGE_CACHE_CONTROL = "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400"
+# Si alguna tienda se cayó por algo pasajero, no queremos que el CDN fije esa
+# respuesta incompleta diez minutos: se reintenta pronto.
+DEGRADED_CACHE_CONTROL = "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+
+# Errores que indican una caída pasajera, no que la tienda no tenga el producto.
+_TRANSIENT_MARKERS = ("429", "timeout", "500", "502", "503", "504", "connect")
+
+
+def _is_degraded(rows: list[dict]) -> bool:
+    for row in rows:
+        if row.get("ok"):
+            continue
+        err = (row.get("error") or "").lower()
+        if any(m in err for m in _TRANSIENT_MARKERS):
+            return True
+    return False
 
 SITE_URL = "https://gt-compare.vercel.app"
 RATE_LIMIT_WINDOW_SECONDS = 60
@@ -371,7 +387,11 @@ async def api_search(request: Request, q: str, store: Optional[str] = None) -> J
             "cheapest": cheapest,
             "model_groups": _model_groups(rows),
         },
-        headers={"Cache-Control": SEARCH_CACHE_CONTROL},
+        headers={
+            "Cache-Control": (
+                DEGRADED_CACHE_CONTROL if _is_degraded(rows) else SEARCH_CACHE_CONTROL
+            )
+        },
     )
 
 
