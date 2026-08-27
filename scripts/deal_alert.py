@@ -111,7 +111,11 @@ async def scan() -> list:
             )
         except Exception as exc:  # noqa: BLE001
             print(f"[{q}] error: {exc}", file=sys.stderr)
-    return found
+    # El mismo producto sale en varias búsquedas de la watchlist.
+    unicos = {}
+    for a in found:
+        unicos.setdefault((a.store_key, a.name[:90], round(a.price, 2)), a)
+    return list(unicos.values())
 
 
 def key_of(a) -> str:

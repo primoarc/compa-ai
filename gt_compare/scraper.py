@@ -71,6 +71,17 @@ _RE_IMG = re.compile(r'class="product-image-photo"[^>]*\ssrc="([^"]+)"', re.I)
 _RE_TAG = re.compile(r"<[^>]+>")
 
 
+# Magento declara el precio regular como data-price-type="oldPrice" junto al
+# "finalPrice". Es la misma referencia que ListPrice en VTEX y habilita la
+# señal más fuerte del detector de errores de precio en La Curacao, RadioShack,
+# Steren y EPA, que hasta ahora quedaban fuera.
+_RE_OLD_PRICE = re.compile(
+    r'data-price-type="oldPrice"[^>]*data-price-amount="([\d.]+)"'
+    r'|data-price-amount="([\d.]+)"[^>]*data-price-type="oldPrice"',
+    re.I,
+)
+
+
 def _parse_magento(store: Store, html: str) -> list[Product]:
     products: list[Product] = []
     # Cada chunk arranca en un "product-item-info" y termina donde empieza el
@@ -88,6 +99,14 @@ def _parse_magento(store: Store, html: str) -> list[Product]:
         price_m = _RE_PRICE.search(chunk)
         price = float(price_m.group(1)) if price_m else None
         img_m = _RE_IMG.search(chunk)
+        old_m = _RE_OLD_PRICE.search(chunk)
+        list_price = None
+        if old_m:
+            raw = old_m.group(1) or old_m.group(2)
+            try:
+                list_price = round(float(raw), 2)
+            except (TypeError, ValueError):
+                list_price = None
         agotado = "agotado" in chunk.lower() or "sin existencia" in chunk.lower()
         products.append(
             Product(
@@ -98,6 +117,7 @@ def _parse_magento(store: Store, html: str) -> list[Product]:
                 available=0 if agotado else 1,
                 url=url,
                 image=img_m.group(1) if img_m else None,
+                list_price=list_price,
             )
         )
     return products

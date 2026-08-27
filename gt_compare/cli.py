@@ -138,6 +138,10 @@ def deals(
     stores = load_stores()
 
     found: list = []
+    # Un mismo producto aparece en varias búsquedas de la lista ("televisor" y
+    # "televisor 55" devuelven la misma tele), así que se deduplica entre
+    # queries y no solo dentro de cada una.
+    vistos: set = set()
     for q in watch:
         if not as_json:
             console.print(f"[dim]revisando[/dim] {q}…")
@@ -155,6 +159,10 @@ def deals(
             # que va detrás de un flag.
             if not cohorte and a.kind == "cohorte":
                 continue
+            clave = (a.store_key, a.name[:90], round(a.price, 2))
+            if clave in vistos:
+                continue
+            vistos.add(clave)
             found.append(a)
 
     found.sort(key=lambda a: a.savings, reverse=True)
