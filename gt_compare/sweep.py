@@ -219,22 +219,45 @@ async def sweep_store(store: Store, *, max_categorias: int = 0) -> tuple:
     return list(vistos.values()), stats
 
 
+# Descuentos de campaña. En Cemaco el 65% de las rebajas cae exactamente en
+# uno de estos valores: no es movimiento de precio, es un cartel de "50% OFF".
+# Un remate de inventario muerto da números feos (85%, 71%, 78%).
+_REDONDOS = {10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 75, 80, 90}
+
+# Existencias de relleno: Cemaco marca 14,920 productos con exactamente 100 y
+# 10,973 con 99999. Donde aparecen, "disponible" no significa nada.
+_STOCK_FALSO = {100, 999, 9999, 99999}
+
+
+def es_campana(descuento: float) -> bool:
+    """¿El descuento cae en un valor redondo de promoción?"""
+    return round(descuento * 100) in _REDONDOS
+
+
 def anomalias_por_lista(
     productos: list,
     *,
     min_descuento: float = 0.70,
     min_referencia: float = 800.0,
+    incluir_campanas: bool = False,
 ) -> list:
-    """Productos muy por debajo del precio de lista de su propia tienda."""
+    """Productos muy por debajo del precio de lista de su propia tienda.
+
+    Por defecto se descartan los descuentos de campaña: son promociones
+    anunciadas, no precios equivocados, y ahogan los hallazgos de verdad.
+    """
     salida = []
     for p in productos:
         lp = p.list_price
         if not lp or not p.price or lp <= p.price or lp < min_referencia:
             continue
+        # El stock de relleno no confirma nada, pero un 0 explícito sí descarta.
         if p.available <= 0:
             continue
         desc = 1.0 - (p.price / lp)
         if desc < min_descuento:
+            continue
+        if not incluir_campanas and es_campana(desc):
             continue
         salida.append((desc, p))
     salida.sort(key=lambda x: -x[0])
