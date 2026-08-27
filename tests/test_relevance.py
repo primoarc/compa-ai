@@ -53,6 +53,26 @@ CASES = [
     ("mini split", "Control remoto para mini split", False),
     ("mochila", "Mochila para Laptop Durham", True),
 
+    # --- electrodomésticos: homónimos y aparatos de otra categoría --------
+    # "refri" (5 letras) calzaba dentro de "REFRIgerante para radiador", y el
+    # anticongelante de carro salía como la refrigeradora más barata.
+    ("refrigeradora", "Refrigerante para radiador 946 ml", False),
+    ("refrigeradora", "Traba plástica para puerta refrigeradora Joy", False),
+    ("refrigeradora", "Refrigeradora Whirlpool 14 pies No Frost", True),
+    ("refrigeradora", "Refrigeradora French Door de 2 puertas Samsung 22 pies", True),
+    ("refri", "Refrigeradora Mabe 11 pies", True),
+    # una hidrolavadora lleva la palabra "lavadora" y no lava ropa
+    ("lavadora", "Yato Hidro lavadora 1400W", False),
+    ("lavadora", "Lavadora de presión bare tool 550psi 20v", False),
+    ("lavadora", "Lavadora de Tapicería Aksi Home 450w", False),
+    ("lavadora", "Sylvanian Families Set de Lavadora y Aspiradora", False),
+    ("lavadora", "Lavadora LG Superior Digital 25 kg WT25EWTX6", True),
+    ("lavadora", "Lavadora Mabe Superior Análogo 19 kg LMA79113VBAB0", True),
+    ("hidrolavadora", "Yato Hidro lavadora 1400W", True),
+    ("lavadora de presion", "Lavadora de presión bare tool 550psi 20v", True),
+    # la regla "para X" admite palabras en medio sin comerse productos reales
+    ("licuadora", "Licuadora para batidos Hamilton Beach 1.4L blanca", True),
+
     # --- productos reales que deben seguir apareciendo --------------------
     ("laptop", "Laptop Lenovo IdeaPad Slim 3 15AMN8 AMD Ryzen 3 7320U 8GB", True),
     ("laptop", 'Dell 33.8 cm / 13.3" Pulgadas Computadora Portátil Intel Core i3', True),

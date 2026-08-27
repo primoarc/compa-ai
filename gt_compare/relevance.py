@@ -188,6 +188,13 @@ _ALIAS_GROUPS: list[tuple[str, ...]] = [
         "dog food",
     ),
     (
+        "hidrolavadora",
+        "hidro lavadora",
+        "lavadora de presion",
+        "lavadora a presion",
+        "pressure washer",
+    ),
+    (
         "comida para gato",
         "alimento para gato",
         "concentrado para gato",
@@ -235,6 +242,7 @@ _TOY_MARKERS = {
     "winfun", "kids", "junior", "preescolar",
     # Miniaturas decorativas: "Villa navideña televisor con luz y música"
     # aparecía como uno de los televisores más baratos.
+    "sylvanian", "playmobil", "lego", "barbie", "vtech", "hasbro",
     "navideno", "navidena", "navidenos", "navidenas", "navidad",
     "adorno", "adornos", "decoracion", "decorativo", "decorativa",
     "miniatura", "miniaturas", "villa",
@@ -294,6 +302,16 @@ _LIGHTING_EXCLUDE = {
     "luminaria", "luminarias", "plafon", "plafones", "arbotante",
     "arbotantes", "farol", "faroles", "tulipa", "tulipas",
     "proyeccion", "facial", "careta", "caretas",
+}
+
+# Una hidrolavadora, una lavadora de presión y una lavadora de tapicería
+# llevan la palabra "lavadora" pero no lavan ropa. Namespaced igual que los
+# demás: solo aplica cuando la query pide una lavadora de ropa.
+_WASHER_TOKENS = next(g for g in _SYN_GROUPS if "lavadora" in g)
+_WASHER_EXCLUDE = {
+    "hidro", "hidrolavadora", "hidrolavadoras", "presion", "psi",
+    "tapiceria", "alfombra", "alfombras", "karcher", "chorro",
+    "sopladora", "aspiradora", "aspiradoras",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -644,6 +662,10 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
         wants_lighting = bool(set(original_qtoks) & _LIGHTING_EXCLUDE)
         if is_tv_query and not wants_lighting and (_LIGHTING_EXCLUDE & name_toks):
             return False
+        is_washer_query = bool(set(original_qtoks) & _WASHER_TOKENS)
+        wants_pressure = bool(set(original_qtoks) & _WASHER_EXCLUDE)
+        if is_washer_query and not wants_pressure and (_WASHER_EXCLUDE & name_toks):
+            return False
         # La versión de juguete de un aparato siempre gana el puesto de "más
         # barato" y desprestigia el resultado principal.
         qtok_set = set(original_qtoks)
@@ -668,8 +690,11 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
                 if _is_number(t):
                     continue
                 for syn in _synonyms(t):
+                    # Se admiten hasta dos palabras entre "para" y el producto
+                    # ("Traba plástica para puerta refrigeradora"), que antes se
+                    # colaban como si fueran el electrodoméstico.
                     accessory_for_query = (
-                        rf"\bpara\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}"
+                        rf"\bpara\s+(?:(?:el|la|tu|los|las)\s+)?(?:\w+\s+){{0,2}}{re.escape(syn)}"
                         rf"|\bpara\s+uso\s+con\s+(?:el\s+|la\s+|tu\s+)?{re.escape(syn)}"
                     )
                     if not allows_for_phrase and re.search(accessory_for_query, name_norm):
@@ -700,8 +725,11 @@ def _variant_matches(qtoks: tuple[str, ...], name_norm: str, name_toks: set[str]
         group = _synonyms(t)
         if name_toks & group:
             continue
-        # marcas/palabras parciales: permitir como subcadena (samsung…)
-        if any(len(g) >= 5 and g in name_norm for g in group):
+        # Marcas y palabras parciales como subcadena ("samsung" dentro de
+        # "SamsungTV"). El mínimo es 6 y no 5 a propósito: con 5, la
+        # abreviatura "refri" calzaba dentro de "refrigerante para radiador",
+        # y el refrigerante de carro salía como la refrigeradora más barata.
+        if any(len(g) >= 6 and g in name_norm for g in group):
             continue
         return False
     return True
