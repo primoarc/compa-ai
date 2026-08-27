@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import httpx
+from urllib.parse import urlparse
 
 from .stores import Store
 from .vtex import HEADERS, Product, _normalize_price
@@ -33,6 +34,12 @@ from .vtex import HEADERS, Product, _normalize_price
 logger = logging.getLogger("gt_compare")
 
 PAGE = 50
+# Cortes de precio para partir categorías grandes. Densos abajo porque ahí se
+# concentra el catálogo (ropa, belleza) y ralos arriba.
+PRICE_EDGES = [
+    0, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 650, 800, 1000,
+    1300, 1700, 2200, 3000, 4000, 6000, 10000, 20000, 1_000_000,
+]
 # VTEX corta la paginación pasado este offset; más allá hay que bajar a las
 # subcategorías en vez de seguir pidiendo páginas.
 MAX_OFFSET = 2500
@@ -57,11 +64,12 @@ async def _category_tree(client: httpx.AsyncClient, store: Store, depth: int = 3
     return r.json()
 
 
-async def _total_en_categoria(client: httpx.AsyncClient, store: Store, cid) -> int:
-    """Cuántos productos declara la categoría (viene en el header 'resources')."""
+async def _total(client: httpx.AsyncClient, store: Store, fqs: list) -> int:
+    """Productos que declara una combinación de filtros (header 'resources')."""
+    q = "&".join(f"fq={f}" for f in fqs)
     url = (
         f"https://{store.domain}/api/catalog_system/pub/products/search"
-        f"?fq=C:{cid}&_from=0&_to=0"
+        f"?{q}&_from=0&_to=0"
     )
     try:
         r = await client.get(url, headers=HEADERS, timeout=30)
@@ -71,33 +79,61 @@ async def _total_en_categoria(client: httpx.AsyncClient, store: Store, cid) -> i
         return 0
 
 
-async def _categories(client: httpx.AsyncClient, store: Store, depth: int = 3) -> list:
-    """Categorías a recorrer, sin solaparse.
+async def _buckets(
+    client: httpx.AsyncClient,
+    store: Store,
+    cat_id,
+    lo: float,
+    hi: float,
+    total: int,
+    salida: list,
+    profundidad: int = 0,
+) -> None:
+    """Parte una categoría en rangos de precio hasta que quepan bajo el tope.
 
-    Se toma la categoría más alta que quepa entera bajo el tope de paginación;
-    solo si no cabe se baja a sus hijas. Recorrer padre e hijas descargaría lo
-    mismo dos veces, que además de lento es una descortesía con la tienda.
+    VTEX corta la paginación pasados ~2500 productos por consulta, y las rutas
+    de subcategoría no filtran de forma fiable (devuelven el total del padre, o
+    el catálogo entero si la ruta no es navegable). Partir por precio sí es
+    exacto: la categoría Moda, con 12,990 productos, se reparte en rangos que
+    suman 12,981.
+    """
+    fqs = [f"C:{cat_id}", f"P:[{lo:g} TO {hi:g}]"]
+    if total <= MAX_OFFSET or profundidad >= 8 or hi - lo < 2:
+        if total:
+            salida.append({"fqs": fqs, "total": total})
+        return
+    medio = round((lo + hi) / 2, 2)
+    for a, b in ((lo, medio), (medio, hi)):
+        t = await _total(client, store, [f"C:{cat_id}", f"P:[{a:g} TO {b:g}]"])
+        if t:
+            await _buckets(client, store, cat_id, a, b, t, salida, profundidad + 1)
+
+
+async def _slices(client: httpx.AsyncClient, store: Store) -> list:
+    """Consultas que, juntas, cubren el catálogo completo.
+
+    Solo se usan categorías raíz: son las únicas cuyo filtro por id responde
+    correctamente en VTEX. En Siman suman 22,655 contra los 22,648 declarados,
+    o sea el catálogo entero.
     """
     salida: list = []
-
-    async def visitar(nodo) -> None:
-        cid = nodo.get("id")
+    for raiz in await _category_tree(client, store, 1):
+        cid = raiz.get("id")
         if not cid:
-            return
-        total = await _total_en_categoria(client, store, cid)
-        hijos = nodo.get("children") or []
-        if total and total <= MAX_OFFSET:
-            salida.append({"id": cid, "name": nodo.get("name", ""), "total": total})
-            return
-        if hijos:
-            for h in hijos:
-                await visitar(h)
-        elif total:
-            # Sin hijas y por encima del tope: se recorre lo que la API permita.
-            salida.append({"id": cid, "name": nodo.get("name", ""), "total": total})
-
-    for raiz in await _category_tree(client, store, depth):
-        await visitar(raiz)
+            continue
+        total = await _total(client, store, [f"C:{cid}"])
+        if not total:
+            continue
+        if total <= MAX_OFFSET:
+            salida.append({"fqs": [f"C:{cid}"], "total": total})
+            continue
+        # Bisecar desde [0, 1000000] gasta la recursión partiendo rangos
+        # vacíos: casi todo el catálogo vive debajo de Q3,000. Se arranca con
+        # cortes de precio realistas y solo se bisecta dentro del que no quepa.
+        for lo, hi in zip(PRICE_EDGES, PRICE_EDGES[1:]):
+            t = await _total(client, store, [f"C:{cid}", f"P:[{lo:g} TO {hi:g}]"])
+            if t:
+                await _buckets(client, store, cid, lo, hi, t, salida)
     return salida
 
 
@@ -124,19 +160,20 @@ def _to_product(store: Store, raw: dict) -> Optional[Product]:
         return None
 
 
-async def _sweep_category(
+async def _sweep_slice(
     client: httpx.AsyncClient,
     store: Store,
-    cat: dict,
+    corte: dict,
     sem: asyncio.Semaphore,
     stats: SweepStats,
     vistos: dict,
 ) -> None:
+    q = "&".join(f"fq={f}" for f in corte["fqs"])
     frm = 0
     while frm < MAX_OFFSET:
         url = (
             f"https://{store.domain}/api/catalog_system/pub/products/search"
-            f"?fq=C:{cat['id']}&_from={frm}&_to={frm + PAGE - 1}"
+            f"?{q}&_from={frm}&_to={frm + PAGE - 1}"
         )
         async with sem:
             try:
@@ -157,7 +194,7 @@ async def _sweep_category(
             return
         for raw in lote:
             p = _to_product(store, raw)
-            if p and p.url not in vistos:
+            if p and p.url and p.url not in vistos:
                 vistos[p.url] = p
                 stats.productos += 1
         if len(lote) < PAGE:
@@ -172,12 +209,12 @@ async def sweep_store(store: Store, *, max_categorias: int = 0) -> tuple:
     vistos: dict = {}
     sem = asyncio.Semaphore(CONCURRENCY)
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        cats = await _categories(client, store)
+        cortes = await _slices(client, store)
         if max_categorias:
-            cats = cats[:max_categorias]
-        stats.categorias = len(cats)
+            cortes = cortes[:max_categorias]
+        stats.categorias = len(cortes)
         await asyncio.gather(
-            *(_sweep_category(client, store, c, sem, stats, vistos) for c in cats)
+            *(_sweep_slice(client, store, c, sem, stats, vistos) for c in cortes)
         )
     return list(vistos.values()), stats
 
