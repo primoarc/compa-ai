@@ -35,8 +35,19 @@ TWO_STORE_MIN_DISCOUNT = 0.50
 # La cohorte mezcla gamas distintas, así que el umbral es alto.
 COHORT_MIN_DISCOUNT = 0.55
 COHORT_MIN_ITEMS = 5
-# Debajo de esto, un "descuento enorme" suele ser un accesorio mal clasificado.
-MIN_PRICE = 400.0
+# Contra el precio de lista de la propia tienda. Una rebaja de 30-50% es
+# rutina en el retail guatemalteco; de 70% para arriba ya no es promoción.
+LIST_PRICE_MIN_DISCOUNT = 0.70
+LIST_PRICE_HIGH_DISCOUNT = 0.80
+# Piso global: debajo de esto no hay nada que valga la pena revisar.
+MIN_PRICE = 150.0
+# Al comparar entre tiendas o por cohorte, un precio bajo suele ser un accesorio
+# mal clasificado, así que ahí el piso es más alto.
+CROSS_MIN_PRICE = 400.0
+# Contra el precio de lista el piso va sobre la REFERENCIA, no sobre el precio
+# de venta: una laptop a Q299 con lista de Q2,899 es justo el caso interesante,
+# y un cable a Q50 con lista de Q100 no lo es.
+LIST_MIN_REFERENCE = 800.0
 
 
 @dataclass
@@ -82,12 +93,14 @@ def _offers_from_rows(rows: list) -> list:
                 "store": row.get("store"),
                 "store_key": row.get("store_key"),
             })
+
     return out
 
 
 def _cross_store(query: str, offers: list) -> list:
     """Mismo modelo confirmado, una tienda muy por debajo de las demás."""
     found = []
+    offers = [o for o in offers if o["price"] >= CROSS_MIN_PRICE]
     for group in matching.group_offers(offers, min_stores=2):
         cheap, *rest = group["offers"]
         if not rest:
@@ -120,6 +133,37 @@ def _cross_store(query: str, offers: list) -> list:
     return found
 
 
+def _vs_list_price(query: str, offers: list) -> list:
+    """Muy por debajo del precio de lista que declara la misma tienda.
+
+    Es la referencia más autorizada que hay: no depende de encontrar el mismo
+    modelo en otra tienda ni de tener historial. Fue lo que delató una Lenovo
+    de 14" a Q529 cuyo propio precio de lista en Siman era Q3,499.
+    """
+    found = []
+    for o in offers:
+        lista = o.get("list_price")
+        if not lista or lista <= o["price"] or lista < LIST_MIN_REFERENCE:
+            continue
+        discount = 1.0 - (o["price"] / lista)
+        if discount < LIST_PRICE_MIN_DISCOUNT:
+            continue
+        found.append(Anomaly(
+            kind="lista",
+            confidence="alta" if discount >= LIST_PRICE_HIGH_DISCOUNT else "media",
+            query=query,
+            store=o["store"],
+            store_key=o["store_key"],
+            name=o["name"],
+            price=o["price"],
+            reference=lista,
+            url=o.get("url", ""),
+            peers=0,  # la referencia es la tienda misma, no otras tiendas
+            size=matching.screen_size(o.get("name", "")),
+        ))
+    return found
+
+
 def _cohort(query: str, offers: list) -> list:
     """Muy por debajo de la mediana de su misma diagonal."""
     by_size: dict = {}
@@ -131,6 +175,7 @@ def _cohort(query: str, offers: list) -> list:
 
     found = []
     for size, group in by_size.items():
+        group = [o for o in group if o["price"] >= CROSS_MIN_PRICE]
         if len(group) < COHORT_MIN_ITEMS:
             continue
         prices = sorted(o["price"] for o in group)
@@ -161,15 +206,20 @@ def find_anomalies(query: str, rows: list) -> list:
     if not offers:
         return []
 
-    found = _cross_store(query, offers) + _cohort(query, offers)
+    found = (
+        _cross_store(query, offers)
+        + _vs_list_price(query, offers)
+        + _cohort(query, offers)
+    )
 
     # Un mismo producto puede caer por ambos caminos: se queda la señal más
     # fuerte (el cruce entre tiendas compara productos idénticos).
+    rank = {"modelo": 0, "lista": 1, "cohorte": 2}
     best: dict = {}
     for a in found:
         key = (a.store_key, a.name, a.price)
         prev = best.get(key)
-        if prev is None or (prev.kind == "cohorte" and a.kind == "modelo"):
+        if prev is None or rank[a.kind] < rank[prev.kind]:
             best[key] = a
     return sorted(best.values(), key=lambda a: a.discount, reverse=True)
 
@@ -181,6 +231,8 @@ def post_text(a: Anomaly) -> str:
     price = f"Q{a.price:,.0f}"
     if a.kind == "modelo":
         contexto = f"El mismo modelo está a {ref} en {a.peers} tienda(s) más."
+    elif a.kind == "lista":
+        contexto = f"La tienda misma lo lista en {ref}."
     else:
         size = f'{a.size:g}"' if a.size else "su categoría"
         contexto = f"La mediana de {size} anda en {ref}."

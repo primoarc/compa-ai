@@ -54,6 +54,11 @@ class Product:
     available: int
     url: str
     image: str | None
+    # Precio de lista de la propia tienda (el tachado). Es la referencia más
+    # autorizada que existe para saber si un precio es anómalo: no depende de
+    # comparar con otra tienda ni de tener historial. Una laptop a Q529 con
+    # ListPrice Q3,499 la delata sola.
+    list_price: float | None = None
 
 
 @dataclass
@@ -157,6 +162,7 @@ def _parse_products(store: Store, raw_list: list) -> list[Product]:
                     available=int(offer.get("AvailableQuantity", 0) or 0),
                     url=item.get("link", ""),
                     image=(images[0] or {}).get("imageUrl"),
+                    list_price=_normalize_price(offer.get("ListPrice")),
                 )
             )
         except (IndexError, KeyError, TypeError, ValueError) as exc:

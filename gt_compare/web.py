@@ -233,6 +233,8 @@ def _prod_dict(p) -> dict:
         # Diagonal declarada en el título. El front la muestra como chip para
         # que se vea de una que dos filas no son el mismo aparato.
         "size": matching.screen_size(p.name),
+        # Precio de lista de la tienda (tachado), cuando lo declara.
+        "list_price": getattr(p, "list_price", None),
     }
 
 

@@ -149,10 +149,11 @@ def deals(
         for a in deals_mod.find_anomalies(q, rows):
             if a.discount < min_discount:
                 continue
-            # Por defecto solo el cruce entre tiendas: compara productos
-            # idénticos y casi no da falsos positivos. La cohorte confunde
-            # gama baja con rebaja, así que va detrás de un flag.
-            if not cohorte and a.kind != "modelo":
+            # Por defecto, las dos señales que comparan contra una referencia
+            # legítima: el mismo modelo en otra tienda, o el precio de lista de
+            # la tienda misma. La cohorte confunde gama baja con rebaja, así
+            # que va detrás de un flag.
+            if not cohorte and a.kind == "cohorte":
                 continue
             found.append(a)
 

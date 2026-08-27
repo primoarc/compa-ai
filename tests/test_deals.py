@@ -19,8 +19,9 @@ def row(store, items):
     return {"ok": True, "store": store.title(), "store_key": store, "items": items}
 
 
-def item(name, price, available=True):
-    return {"name": name, "price": price, "available": available, "url": "#", "image": None}
+def item(name, price, available=True, list_price=None):
+    return {"name": name, "price": price, "available": available, "url": "#",
+            "image": None, "list_price": list_price}
 
 
 TV = 'Televisor Samsung 65" LED 4K UHD UN65U8000FPX'
@@ -78,6 +79,48 @@ check("bajo el mínimo no se evalúa", found, [])
 # --- una tienda sola no es comparación ------------------------------------
 found = deals.find_anomalies("televisor 65", [row("curacao", [item(TV, 4197.0)])])
 check("una sola tienda no basta", found, [])
+
+# --- contra el precio de lista de la propia tienda -------------------------
+# Caso real: Siman vendía a Q529 una laptop que ella misma lista en Q3,499.
+LAPTOP = 'Laptop Lenovo 14" AMD A6-9220E 4GB RAM + 64GB ROM //81VS009'
+found = deals.find_anomalies("laptop", [
+    row("siman", [item(LAPTOP, 529.0, list_price=3499.0)]),
+])
+check("detecta el desvío contra el precio de lista", len(found), 1)
+if found:
+    check("la señal es 'lista'", found[0].kind, "lista")
+    check("-85% da confianza alta", found[0].confidence, "alta")
+    check("la referencia es el precio de lista", found[0].reference, 3499.0)
+
+# una rebaja normal de retail no se marca
+found = deals.find_anomalies("laptop", [
+    row("siman", [item(LAPTOP, 2000.0, list_price=3499.0)]),   # -43%
+])
+check("-43% es promoción normal, no anomalía", found, [])
+
+# el piso va sobre la referencia: una laptop a Q299 con lista Q2,899 sí cuenta
+found = deals.find_anomalies("laptop", [
+    row("siman", [item('Laptop Acer 12" Celeron N3060', 299.0, list_price=2899.0)]),
+])
+check("precio bajo con referencia alta sí se evalúa", len(found), 1)
+
+# un accesorio barato con lista baja no
+found = deals.find_anomalies("laptop", [
+    row("siman", [item("Cable HDMI", 30.0, list_price=300.0)]),
+])
+check("referencia baja no se evalúa", found, [])
+
+# sin precio de lista no hay señal
+found = deals.find_anomalies("laptop", [
+    row("siman", [item(LAPTOP, 529.0, list_price=None)]),
+])
+check("sin precio de lista no hay señal", found, [])
+
+# el precio de lista no puede ser menor que el de venta
+found = deals.find_anomalies("laptop", [
+    row("siman", [item(LAPTOP, 3499.0, list_price=529.0)]),
+])
+check("lista menor que precio se ignora", found, [])
 
 # --- el borrador de publicación incluye lo esencial ------------------------
 found = deals.find_anomalies("televisor 65", [
