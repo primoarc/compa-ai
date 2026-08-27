@@ -224,6 +224,61 @@ async def _deal_rows(stores, query: str):
 
 
 @app.command()
+def sweep(
+    store: str = typer.Option("siman", "--store", "-s",
+                              help="Tienda VTEX a recorrer (siman, cemaco, walmart)."),
+    min_discount: float = typer.Option(0.70, "--min",
+                                       help="Desvío mínimo contra el precio de lista."),
+    limit_cats: int = typer.Option(0, "--categorias",
+                                   help="Recorrer solo N categorías (para probar)."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+):
+    """Recorre el catálogo COMPLETO de una tienda VTEX buscando precios anómalos.
+
+    Buscar por palabra trae 24 productos por tienda; los catálogos tienen
+    decenas de miles. Esto los enumera por categoría, que es como trabajan los
+    rastreadores serios. Tarda minutos y hace miles de peticiones: no lo corras
+    en bucle.
+    """
+    from . import sweep as sweep_mod
+
+    _setup_logging(verbose)
+    tienda = next((s for s in load_stores() if s.key == store), None)
+    if tienda is None or tienda.kind != "vtex":
+        console.print(f"[red]'{store}' no es una tienda VTEX enumerable.[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]recorriendo el catálogo de {tienda.name}…[/dim]")
+    productos, stats = asyncio.run(
+        sweep_mod.sweep_store(tienda, max_categorias=limit_cats)
+    )
+    console.print(
+        f"[dim]{stats.categorias} categorías · {stats.paginas} páginas · "
+        f"{stats.productos} productos · {stats.errores} errores[/dim]"
+    )
+
+    anomalias = sweep_mod.anomalias_por_lista(productos, min_descuento=min_discount)
+    if not anomalias:
+        console.print("\n[green]Nada por debajo del umbral.[/green]")
+        return
+
+    from rich.table import Table
+    table = Table(title=f"Precios anómalos en {tienda.name} ({len(anomalias)})")
+    table.add_column("Desc", justify="right", width=5)
+    table.add_column("Precio", justify="right")
+    table.add_column("Lista", justify="right")
+    table.add_column("Disp", justify="right", width=4)
+    table.add_column("Producto", overflow="fold")
+    for d, p in anomalias:
+        table.add_row(f"[bold green]-{d*100:.0f}%[/bold green]",
+                      f"Q{p.price:,.0f}", f"Q{p.list_price:,.0f}",
+                      str(p.available), p.name[:64])
+    console.print(table)
+    for _, p in anomalias:
+        console.print(f"[dim]{p.url}[/dim]")
+
+
+@app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="Host"),
     port: int = typer.Option(8000, help="Puerto"),
