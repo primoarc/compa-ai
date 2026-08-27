@@ -218,6 +218,11 @@ _ACCESSORY = {
     "manguera", "mangueras", "valvula", "valvulas", "sensor", "sensores",
     "termostato", "termostatos", "instalacion", "mantenimiento", "limpieza",
     "stand", "stands", "empaque", "empaques", "empaquetadura",
+    # Tomas, conectores y placas de pared: "TOMA TV COAXIAL" a Q3.52
+    # llegó a encabezar la búsqueda de "televisor".
+    "toma", "tomas", "coaxial", "conector", "conectores", "enchufe",
+    "enchufes", "roseta", "rosetas", "placa", "placas", "jack",
+    "splitter", "divisor", "divisores",
 }
 
 # Marcadores de juguete. La versión de juguete de un aparato ("Winfun Laptop
@@ -228,6 +233,11 @@ _TOY_MARKERS = {
     "juguete", "juguetes", "toy", "toys", "juguetero", "juguetera",
     "didactico", "didactica", "infantil", "infantiles", "montessori",
     "winfun", "kids", "junior", "preescolar",
+    # Miniaturas decorativas: "Villa navideña televisor con luz y música"
+    # aparecía como uno de los televisores más baratos.
+    "navideno", "navidena", "navidenos", "navidenas", "navidad",
+    "adorno", "adornos", "decoracion", "decorativo", "decorativa",
+    "miniatura", "miniaturas", "villa",
 }
 _TOY_SENSITIVE_ANCHORS = (
     "televisor", "laptop", "celular", "licuadora", "refrigeradora",
@@ -261,12 +271,29 @@ _LAPTOP_EXCLUDE = {
 # se aplica cuando la query es de TV, para no afectar búsquedas de esos
 # productos en sí ("celular samsung", "reloj samsung", etc.).
 _TV_TOKENS = next(g for g in _SYN_GROUPS if "televisor" in g)
-_WEARABLE_EXCLUDE = {
+# Otros aparatos que mencionan "pantalla" en su ficha: relojes, celulares,
+# tablets, laptops, cámaras y timbres con video. El nombre ya no es solo
+# "wearable" porque el problema es la pantalla, no lo que se lleva puesto.
+_SCREEN_DEVICE_EXCLUDE = {
     "reloj", "relojes", "smartwatch", "watch", "band", "bandas",
     "pulsera", "pulseras", "buds", "fit", "wearable",
     "celular", "celulares", "telefono", "telefonos", "smartphone",
     "smartphones", "tablet", "tableta", "tabletas", "tablets", "ipad",
     "laptop", "laptops", "notebook", "notebooks",
+    "camara", "camaras", "webcam", "videoportero", "videollamadas",
+    "timbre", "timbres", "intercomunicador", "monitor", "monitores",
+}
+
+# "pantalla" también es la tulipa de una lámpara ("Lámpara Colgante 1 Luz
+# Satín Níquel Pantalla Opal Blanco" llegó a ser el televisor más barato a
+# Q149), y la superficie de un proyector o de una careta. Mismo tratamiento
+# que _SCREEN_DEVICE_EXCLUDE: solo aplica si la query es de televisor.
+_LIGHTING_EXCLUDE = {
+    "lampara", "lamparas", "colgante", "colgantes", "candil", "candiles",
+    "candelabro", "candelabros", "foco", "focos", "bombillo", "bombillos",
+    "luminaria", "luminarias", "plafon", "plafones", "arbotante",
+    "arbotantes", "farol", "faroles", "tulipa", "tulipas",
+    "proyeccion", "facial", "careta", "caretas",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -611,8 +638,11 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
         if _ACCESSORY & name_toks:
             return False
         is_tv_query = bool(set(original_qtoks) & _TV_TOKENS)
-        wants_wearable = bool(set(original_qtoks) & _WEARABLE_EXCLUDE)
-        if is_tv_query and not wants_wearable and (_WEARABLE_EXCLUDE & name_toks):
+        wants_other_device = bool(set(original_qtoks) & _SCREEN_DEVICE_EXCLUDE)
+        if is_tv_query and not wants_other_device and (_SCREEN_DEVICE_EXCLUDE & name_toks):
+            return False
+        wants_lighting = bool(set(original_qtoks) & _LIGHTING_EXCLUDE)
+        if is_tv_query and not wants_lighting and (_LIGHTING_EXCLUDE & name_toks):
             return False
         # La versión de juguete de un aparato siempre gana el puesto de "más
         # barato" y desprestigia el resultado principal.

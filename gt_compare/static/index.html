@@ -298,6 +298,41 @@
   }
   .miss .mwhy{color:var(--faint)}
 
+  /* ---------- línea de contexto (frescura + envío) ---------- */
+  .metaline{
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+    margin:12px 0 0;font-size:12.5px;color:var(--faint);
+  }
+  .metaline .dot{opacity:.5}
+  .metaline .warn{color:var(--amber)}
+
+  /* ---------- filtros de precio ---------- */
+  .filters{
+    display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+    margin:22px 0 0;padding-bottom:2px;
+  }
+  .filters .sep{flex:1}
+  .fchip{
+    font-family:var(--sans);font-size:12.5px;color:var(--muted);cursor:pointer;
+    background:none;border:1px solid var(--rule-2);border-radius:999px;padding:6px 13px;
+    white-space:nowrap;font-variant-numeric:tabular-nums;
+    transition:color .18s var(--ease),background .18s var(--ease),border-color .18s var(--ease);
+  }
+  .fchip:hover{color:var(--ink);background:var(--wash);border-color:var(--rule)}
+  .fchip.on{color:var(--white);background:var(--ink);border-color:var(--ink)}
+  .fchip.toggle.on{
+    color:var(--emerald);background:var(--emerald-soft);border-color:rgba(10,107,71,.28);
+  }
+  @media (max-width:620px){
+    .filters{
+      flex-wrap:nowrap;overflow-x:auto;margin:18px -18px 0;padding:0 18px 2px;
+      scrollbar-width:none;
+    }
+    .filters::-webkit-scrollbar{display:none}
+    .fchip{flex:none}
+    .filters .sep{display:none}
+  }
+
   /* ---------- mismo modelo, distinto precio ---------- */
   .samemodel{margin:36px 0 0}
   .samemodel-h{
@@ -511,6 +546,9 @@ const storeCountEl= document.getElementById('storeCount');
 
 let activeStore = null;
 let lastData    = null;
+let priceFilter = null;   // {min,max} activo, o null = sin filtro de precio
+let onlyStock   = false;  // "Solo disponibles"
+let buckets     = [];     // rangos calculados sobre los resultados de la búsqueda
 let view        = 'store';   // 'store' = 1 por tienda | 'all' = todos
 let shownAll    = 15;
 const PAGE      = 15;
@@ -557,6 +595,117 @@ async function loadStores(){
       if(qEl.value.trim()) search();
     });
   }catch(e){}
+}
+
+/* ---- frescura y aviso de envío ---------------------------------------- */
+// La respuesta puede venir del caché de borde y tener varios minutos, así que
+// se muestra la antigüedad real en vez de dar a entender que es de este segundo.
+function freshness(generatedAt){
+  if(!generatedAt) return '';
+  const min = Math.round((Date.now()/1000 - generatedAt) / 60);
+  if(min < 1)  return 'Consultado hace instantes';
+  if(min === 1) return 'Consultado hace 1 minuto';
+  if(min < 60) return `Consultado hace ${min} minutos`;
+  const h = Math.round(min/60);
+  return `Consultado hace ${h} h`;
+}
+
+function metaLine(data){
+  const f = freshness(data.generated_at);
+  return `<div class="metaline">
+      ${f ? `<span>${f}</span><span class="dot">·</span>` : ''}
+      <span class="warn">Los precios no incluyen gastos de envío</span>
+      <span class="dot">·</span>
+      <span>Pueden cambiar al abrir la tienda</span>
+    </div>`;
+}
+
+/* ---- filtros de precio ------------------------------------------------- */
+const fmtShort = n => 'Q' + Number(n).toLocaleString('es-GT', {maximumFractionDigits:0});
+
+function niceRound(n){
+  if(n <= 0) return 0;
+  const mag = Math.pow(10, Math.floor(Math.log10(n)));
+  const step = n >= 1000 ? mag/2 : (n >= 100 ? 50 : 10);
+  return Math.max(step, Math.round(n/step)*step);
+}
+
+// Los rangos salen de la distribución real de la búsqueda: "hasta Q2,000" no
+// significa lo mismo buscando televisores que buscando audífonos.
+function buildPriceBuckets(rows){
+  const prices = [];
+  rows.forEach(r => (r.items||[]).forEach(p => { if(p.price) prices.push(p.price); }));
+  if(prices.length < 6) return [];
+  prices.sort((a,b)=>a-b);
+  const a = niceRound(prices[Math.floor(prices.length/3)]);
+  const b = niceRound(prices[Math.floor(prices.length*2/3)]);
+  if(!(a > 0 && b > a)) return [];
+  return [
+    {label:`Hasta ${fmtShort(a)}`,        min:0, max:a},
+    {label:`${fmtShort(a)} – ${fmtShort(b)}`, min:a, max:b},
+    {label:`Más de ${fmtShort(b)}`,       min:b, max:Infinity},
+  ];
+}
+
+function keepItem(p){
+  if(onlyStock && !p.available) return false;
+  if(priceFilter && !(p.price >= priceFilter.min && p.price <= priceFilter.max)) return false;
+  return true;
+}
+
+// Se filtran los productos de cada tienda y se recalcula su fila cabecera con
+// el más barato que haya sobrevivido; las tiendas que se quedan sin nada salen.
+function applyFilters(rows){
+  if(!priceFilter && !onlyStock) return rows;
+  const kept = rows.map(r=>{
+    const items = (r.items||[]).filter(keepItem);
+    if(!items.length) return null;
+    return {...r, items, count: items.length, ...items[0]};
+  }).filter(Boolean);
+  // Al filtrar cambia cuál es el producto más barato de cada tienda, así que
+  // el orden que traía el backend deja de valer y hay que rehacerlo.
+  kept.sort((a,b)=>{
+    if(Boolean(a.available) !== Boolean(b.available)) return a.available ? -1 : 1;
+    return a.price - b.price;
+  });
+  return kept;
+}
+
+function filterGroups(groups){
+  if(!groups) return [];
+  if(!priceFilter && !onlyStock) return groups;
+  return groups.map(g=>{
+    const offers = g.offers.filter(keepItem);
+    if(offers.length < 2) return null;
+    const spread = offers[offers.length-1].price - offers[0].price;
+    if(spread <= 0) return null;
+    return {...g, offers, stores: offers.length, spread};
+  }).filter(Boolean);
+}
+
+function filtersHtml(){
+  if(!buckets.length) return '';
+  const chips = buckets.map((b,i)=>{
+    const on = priceFilter && priceFilter.min === b.min && priceFilter.max === b.max;
+    return `<button type="button" class="fchip ${on?'on':''}" data-b="${i}">${b.label}</button>`;
+  }).join('');
+  return `<div class="filters">
+      <button type="button" class="fchip ${!priceFilter?'on':''}" data-b="">Cualquier precio</button>
+      ${chips}
+      <span class="sep"></span>
+      <button type="button" class="fchip toggle ${onlyStock?'on':''}" data-stock="1">Solo disponibles</button>
+    </div>`;
+}
+
+function wireFilters(){
+  out.querySelectorAll('.fchip[data-b]').forEach(b=>b.onclick=()=>{
+    const i = b.dataset.b;
+    priceFilter = i === '' ? null : buckets[+i];
+    shownAll = PAGE;
+    render(lastData);
+  });
+  const st = out.querySelector('.fchip[data-stock]');
+  if(st) st.onclick = ()=>{ onlyStock = !onlyStock; shownAll = PAGE; render(lastData); };
 }
 
 function skeleton(){
@@ -688,10 +837,10 @@ function missesHtml(fail){
 
 function render(data){
   lastData = data;
-  const ok   = data.results.filter(r=>r.ok);
-  const fail = data.results.filter(r=>!r.ok);
+  const allOk = data.results.filter(r=>r.ok);
+  const fail  = data.results.filter(r=>!r.ok);
 
-  if(!ok.length){
+  if(!allOk.length){
     out.innerHTML = `<div class="state">
         <h3>Nada encontrado</h3>
         <p>No hubo coincidencias para “${esc(data.query)}” en las tiendas que revisamos. Probá con un término más corto, por ejemplo solo la categoría o la marca.</p>
@@ -699,12 +848,30 @@ function render(data){
     return;
   }
 
+  // Los rangos se calculan sobre los resultados sin filtrar: si se recalcularan
+  // sobre lo ya filtrado, los botones cambiarían de valor al usarlos.
+  buckets = buildPriceBuckets(allOk);
+  const ok = applyFilters(allOk);
+
+  if(!ok.length){
+    out.innerHTML = head(data.query, allOk) + metaLine(data) + filtersHtml()
+      + `<div class="state"><h3>Ningún resultado en ese rango</h3>
+         <p>Probá con otro rango de precio o quitá el filtro de disponibilidad.</p></div>`;
+    wireFilters();
+    return;
+  }
+
+  const cheapestKey = ok.reduce((best,r)=> (!best || r.price < best.price) ? r : best).store_key;
+
   out.innerHTML = head(data.query, ok)
-    + modelGroupsHtml(data.model_groups)
+    + metaLine(data)
+    + modelGroupsHtml(filterGroups(data.model_groups))
+    + filtersHtml()
     + toolbar()
-    + (view==='all' ? viewAll(ok) : viewByStore(ok, data.cheapest))
+    + (view==='all' ? viewAll(ok) : viewByStore(ok, cheapestKey))
     + missesHtml(fail);
 
+  wireFilters();
   out.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{
     view = b.dataset.v; shownAll = PAGE; render(lastData);
   });
@@ -723,6 +890,8 @@ async function search(pushUrl = true){
   if(!q) return;
   q2El.value = q;
   shownAll = PAGE;
+  // Los rangos dependen de la búsqueda: arrastrarlos entre consultas confunde.
+  priceFilter = null; onlyStock = false; buckets = [];
   out.setAttribute('aria-busy','true');
   out.innerHTML = skeleton();
   goEl.disabled = true;

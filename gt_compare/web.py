@@ -386,6 +386,11 @@ async def api_search(request: Request, q: str, store: Optional[str] = None) -> J
             "results": rows,
             "cheapest": cheapest,
             "model_groups": _model_groups(rows),
+            # Momento real de la consulta a las tiendas. Importa porque la
+            # respuesta puede venir del caché de borde y tener varios minutos:
+            # el front muestra la antigüedad en vez de dar a entender que todo
+            # se acaba de consultar.
+            "generated_at": int(time.time()),
         },
         headers={
             "Cache-Control": (
