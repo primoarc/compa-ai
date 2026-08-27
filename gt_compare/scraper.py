@@ -404,6 +404,15 @@ def _intelaf_price(item: dict) -> float | None:
     return _as_price(item.get("PrecioNormal"))
 
 
+def _intelaf_list_price(item: dict) -> float | None:
+    """PrecioNormal es el precio de lista cuando hay un descuento vigente."""
+    discount = _as_price(item.get("PrecioDescuento"))
+    normal = _as_price(item.get("PrecioNormal"))
+    if discount and normal and 0 < discount < normal:
+        return normal
+    return None
+
+
 def _parse_intelaf(store: Store, payload: dict) -> list[Product]:
     products: list[Product] = []
     data = payload.get("Response", payload)
@@ -425,6 +434,7 @@ def _parse_intelaf(store: Store, payload: dict) -> list[Product]:
                 available=int(stock),
                 url=f"https://{store.domain}/producto/{quote(code, safe='')}",
                 image=item.get("Imagen"),
+                list_price=_intelaf_list_price(item),
             )
         )
     return products
@@ -569,6 +579,13 @@ def _parse_woocommerce(store: Store, html: str) -> list[Product]:
             continue
         amounts = _WC_AMOUNT.findall(chunk)
         price = _as_price(amounts[-1]) if amounts else None
+        # Con rebaja aparecen dos montos: <del>regular</del><ins>oferta</ins>.
+        # El primero es el precio de lista.
+        list_price = None
+        if len(amounts) >= 2:
+            first = _as_price(amounts[0])
+            if first and price and first > price:
+                list_price = first
         img_m = _WC_IMG.search(chunk)
         agotado = "outofstock" in chunk.lower() or "agotado" in chunk.lower()
         name = html_lib.unescape(_RE_TAG.sub(" ", title_m.group(1))).strip()
@@ -584,6 +601,7 @@ def _parse_woocommerce(store: Store, html: str) -> list[Product]:
                 available=0 if agotado else 1,
                 url=link_m.group(1),
                 image=img_m.group(1) if img_m else None,
+                list_price=list_price,
             )
         )
     return products
@@ -674,6 +692,12 @@ def _parse_max_constructor(store: Store, payload: dict) -> list[Product]:
             or _as_price(data.get("price"))
             or _as_price(data.get("regular_price"))
         )
+        # Constructor.io publica el precio regular junto al de oferta, que es
+        # la referencia que necesita el detector de precios anómalos. Solo
+        # cuenta si es mayor que el precio de venta: cuando no hay promoción,
+        # regular_price y final_price vienen iguales.
+        regular = _as_price(data.get("regular_price")) or _as_price(data.get("price"))
+        list_price = regular if (regular and price and regular > price) else None
         url = data.get("url")
         if not url and data.get("url_key"):
             url = f"https://{store.domain}/{data['url_key']}"
@@ -686,6 +710,7 @@ def _parse_max_constructor(store: Store, payload: dict) -> list[Product]:
                 available=_max_available(data),
                 url=url or "",
                 image=data.get("image_url"),
+                list_price=list_price,
             )
         )
     return products
