@@ -239,12 +239,15 @@ def anomalias_por_lista(
     *,
     min_descuento: float = 0.70,
     min_referencia: float = 800.0,
-    incluir_campanas: bool = False,
+    incluir_campanas: bool = True,
+    campana_min_descuento: float = 0.75,
 ) -> list:
     """Productos muy por debajo del precio de lista de su propia tienda.
 
-    Por defecto se descartan los descuentos de campaña: son promociones
-    anunciadas, no precios equivocados, y ahogan los hallazgos de verdad.
+    La redondez del descuento es indicio de campaña, no prueba: descartarla de
+    plano escondía una HP Omen con Core i7-10750H y GPU dedicada a Q5,199, solo
+    porque el descuento caía justo en 60%. Ahora un valor redondo baja el listón
+    de confianza pero se conserva si el desvío es grande de todos modos.
     """
     salida = []
     for p in productos:
@@ -257,8 +260,9 @@ def anomalias_por_lista(
         desc = 1.0 - (p.price / lp)
         if desc < min_descuento:
             continue
-        if not incluir_campanas and es_campana(desc):
-            continue
+        if es_campana(desc):
+            if not incluir_campanas or desc < campana_min_descuento:
+                continue
         salida.append((desc, p))
     salida.sort(key=lambda x: -x[0])
     return salida
