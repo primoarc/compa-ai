@@ -73,6 +73,23 @@ CASES = [
     # la regla "para X" admite palabras en medio sin comerse productos reales
     ("licuadora", "Licuadora para batidos Hamilton Beach 1.4L blanca", True),
 
+    # --- "tablet" contra la farmacia --------------------------------------
+    # "tablet" es subcadena de "tabletas": la farmacia entera de Walmart
+    # competía con las Galaxy Tab.
+    ("tablet", "Nexium Astra Zeneca 14 Tabletas - 20 mg", False),
+    ("tablet", "Belarina 28 Tabletas.", False),
+    ("tablet", "Multivitamínico Centrum Caja 45 Tabletas", False),
+    ("tablet", "Antipulgas para perro Simparica trio 3mg (3 tabletas)", False),
+    ("tablet", "Eutirox 200 Mcg Tabletas Una Caja", False),
+    # y las tablets de verdad, que traen alguna seña técnica
+    ("tablet", 'Tablet Redmi Pad 2 9.7" WiFi 4GB RAM 128GB', True),
+    ("tablet", "Tablet RCA 7 3G modelo RC7T3G21 con 2GB RAM y 16GB", True),
+    ("tablet", 'Apple iPad Air 11" Chip M3 Wi-Fi 128GB', True),
+    ("tablet", "Tableta Onn Silver Oscuro - 8.7 Pulgadas", True),
+    ("tableta", 'Tablet Lenovo 10.1" 4gb 64gb ips wifi', True),
+    ("ipad", 'Apple iPad Air 11" Chip M3 Wi-Fi 128GB', True),
+    ("mousepad", "Mouse pad Maxell Gaming RGB", True),
+
     # --- productos reales que deben seguir apareciendo --------------------
     ("laptop", "Laptop Lenovo IdeaPad Slim 3 15AMN8 AMD Ryzen 3 7320U 8GB", True),
     ("laptop", 'Dell 33.8 cm / 13.3" Pulgadas Computadora Portátil Intel Core i3', True),

@@ -27,6 +27,7 @@ _SYN_GROUPS: list[set[str]] = [
     {"licuadora", "blender"},
     {"laptop", "portatil", "notebook", "computadora", "compu"},
     {"celular", "telefono", "smartphone", "movil"},
+    {"tablet", "tablets", "tableta", "tabletas", "ipad"},
     {"audifonos", "auriculares", "earbuds", "headphones"},
     {"lavadora", "washer"},
     {"microondas", "microwave"},
@@ -195,6 +196,12 @@ _ALIAS_GROUPS: list[tuple[str, ...]] = [
         "pressure washer",
     ),
     (
+        "mousepad",
+        "mouse pad",
+        "pad para mouse",
+        "alfombrilla de raton",
+    ),
+    (
         "comida para gato",
         "alimento para gato",
         "concentrado para gato",
@@ -219,7 +226,9 @@ _ACCESSORY = {
     "gancho", "ganchos", "pinza", "pinzas", "peine", "peines", "cepillo", "cepillos",
     "tornillo", "tornillos", "tornilleria", "arandela", "arandelas", "broca",
     "brocas", "punta", "puntas", "porta",
-    "pad", "mousepad", "alfombra", "alfombras",
+    # "pad" suelto rechazaba tablets reales ("Redmi Pad", "Lenovo Pad"); los
+    # accesorios que importaban ya están nombrados por su compuesto.
+    "mousepad", "gamepad", "alfombra", "alfombras",
     "botella", "botellas", "burbujas", "minnie", "mickey",
     "deflector", "deflectores", "escudo", "escudos", "cubierta", "cubiertas",
     "manguera", "mangueras", "valvula", "valvulas", "sensor", "sensores",
@@ -312,6 +321,29 @@ _WASHER_EXCLUDE = {
     "hidro", "hidrolavadora", "hidrolavadoras", "presion", "psi",
     "tapiceria", "alfombra", "alfombras", "karcher", "chorro",
     "sopladora", "aspiradora", "aspiradoras",
+}
+
+# "tablet" es subcadena de "tabletas", así que la farmacia entera calzaba con
+# la búsqueda de tablets: Nexium, antipulgas y multivitamínicos competían con
+# las Galaxy Tab. Lo que los distingue es la dosis, no la palabra.
+_TABLET_TOKENS = {"tablet", "tablets", "tableta", "tabletas", "ipad"}
+# Solo mg/mcg: con "g" suelto, el "3G" de una tablet celular se leía como
+# tres gramos y la descartaba.
+_DOSIS_RE = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:mg|mcg)\b")
+# Excluir farmacia palabra por palabra es una carrera perdida: "Belarina 28
+# Tabletas" no declara dosis ni marca ninguna pista. Se invierte la carga de la
+# prueba: una tablet de verdad SIEMPRE trae alguna seña técnica.
+_TABLET_EVIDENCIA = re.compile(
+    r"\b(?:gb|ram|rom|wifi|wi-fi|lte|5g|4g|pulgadas|ips|android|ios|chip|"
+    r"pantalla|almacenamiento|octa|quad|core)\b"
+    r"|\b(?:samsung|apple|ipad|lenovo|xiaomi|redmi|huawei|amazon|rca|onn|"
+    r"tcl|motorola|honor|nokia|alcatel|galaxy)\b",
+    re.I,
+)
+_PHARMA_MARKERS = {
+    "mg", "mcg", "ml", "comprimido", "comprimidos", "capsula", "capsulas",
+    "jarabe", "dosis", "antipulgas", "antibiotico", "vitamina", "vitaminas",
+    "multivitaminico", "suplemento", "farmacia", "laboratorio",
 }
 
 # Unidades que, pegadas a un número, indican que NO es una talla/medida del
@@ -662,6 +694,15 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
         wants_lighting = bool(set(original_qtoks) & _LIGHTING_EXCLUDE)
         if is_tv_query and not wants_lighting and (_LIGHTING_EXCLUDE & name_toks):
             return False
+        is_tablet_query = bool(set(original_qtoks) & _TABLET_TOKENS)
+        wants_pharma = bool(set(original_qtoks) & _PHARMA_MARKERS)
+        if is_tablet_query and not wants_pharma:
+            # La dosis suele venir pegada al número ("3mg"), que no se tokeniza
+            # como "mg", así que además de los marcadores se busca el patrón.
+            if (_PHARMA_MARKERS & name_toks) or _DOSIS_RE.search(name_norm):
+                return False
+            if not _TABLET_EVIDENCIA.search(name_norm):
+                return False
         is_washer_query = bool(set(original_qtoks) & _WASHER_TOKENS)
         wants_pressure = bool(set(original_qtoks) & _WASHER_EXCLUDE)
         if is_washer_query and not wants_pressure and (_WASHER_EXCLUDE & name_toks):
