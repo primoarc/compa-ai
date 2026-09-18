@@ -947,5 +947,13 @@ loadStores();
 const initial = new URLSearchParams(location.search).get('q');
 if(initial){ qEl.value = initial; search(false); }
 </script>
+<!--
+  Vercel Web Analytics: cuenta visitas y no hace nada hasta que se activa
+  "Web Analytics" en el dashboard del proyecto (plan gratis incluye una
+  cuota mensual). Sin esto no hay forma de ver el tráfico de un video o un
+  tweet: el log de búsquedas actual escribe en /tmp, que en serverless es
+  efímero por instancia y no sirve para medir un pico real de visitas.
+-->
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

@@ -686,6 +686,7 @@ img{{width:46px;height:46px}}
   </section>
   <footer>Compa AI compara precios públicos de tiendas en Guatemala. Los precios pueden cambiar al abrir la tienda. En PriceSmart el precio y disponibilidad pueden variar por club.</footer>
 </main>
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>"""
 
