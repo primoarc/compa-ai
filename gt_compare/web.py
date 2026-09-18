@@ -495,6 +495,30 @@ async def index() -> HTMLResponse:
     return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
 
 
+# Assets estáticos servidos a mano en vez de montar StaticFiles: son solo dos
+# archivos (favicon, imagen de vista previa social) y así queda explícito qué
+# rutas existen, sin abrir un directorio completo a listado.
+_ASSET_CACHE = "public, max-age=86400, s-maxage=604800"
+
+
+@app.get("/favicon.svg")
+async def favicon() -> Response:
+    return Response(
+        (STATIC_DIR / "favicon.svg").read_bytes(),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": _ASSET_CACHE},
+    )
+
+
+@app.get("/og-image.png")
+async def og_image() -> Response:
+    return Response(
+        (STATIC_DIR / "og-image.png").read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": _ASSET_CACHE},
+    )
+
+
 def _money(value: float | int | None) -> str:
     if value is None:
         return "N/D"
@@ -565,10 +589,19 @@ def _seo_page_html(page: SeoPage, rows: list[dict], cheapest: str | None, plan_s
 <title>{_e(page.title)}</title>
 <meta name="description" content="{_e(page.description)}">
 <link rel="canonical" href="{canonical}">
+<link rel="icon" type="image/svg+xml" href="{SITE_URL}/favicon.svg">
 <meta property="og:title" content="{_e(page.title)}">
 <meta property="og:description" content="{_e(page.description)}">
 <meta property="og:url" content="{canonical}">
 <meta property="og:type" content="website">
+<meta property="og:image" content="{SITE_URL}/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="es_GT">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{_e(page.title)}">
+<meta name="twitter:description" content="{_e(page.description)}">
+<meta name="twitter:image" content="{SITE_URL}/og-image.png">
 <meta name="theme-color" content="#ffffff">
 <script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
