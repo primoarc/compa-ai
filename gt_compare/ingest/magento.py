@@ -31,6 +31,12 @@ MAX_PAGES_PER_CATEGORY = 400
 _UNICOMER_SKIP = {"gift-card", "promociones-gt", "lo-mas-nuevo"}
 
 # Respaldo si el menú no expone categorías.
+# Lo que manda un navegador al pedir una página. httpx manda "Accept: */*" por
+# defecto; La Curacao y RadioShack respondieron 406 desde GitHub con eso.
+HTML_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
 # Tiendas cuyo robots.txt prohíbe cualquier URL con "?" (Steren: "Disallow: /*?").
 NO_QUERY_STRING = {"steren"}
 
@@ -236,7 +242,7 @@ async def enumerate_magento(
             stats.coverage_note += " (cortada por errores seguidos)"
 
     try:
-        resp = await client.get(f"https://{store.domain}{base}")
+        resp = await client.get(f"https://{store.domain}{base}", headers=HTML_HEADERS)
         stats.pages += 1
         if resp.status_code == 200:
             sources = discover_categories(store, resp.text)
@@ -250,7 +256,7 @@ async def enumerate_magento(
         for cat in sources:
             cat_ids: set[str] = set()
             for page in range(1, max_pages + 1):
-                resp = await client.get(_page_url(cat.url, page))
+                resp = await client.get(_page_url(cat.url, page), headers=HTML_HEADERS)
                 stats.pages += 1
                 if resp.status_code != 200:
                     stats.errors += 1

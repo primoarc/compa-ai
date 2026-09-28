@@ -226,7 +226,8 @@ async def rebuild(db: Database, decider: Optional[Decider] = None) -> dict:
         new = [(cid, r["ean"], r["name"], r["brand"]) for cid, r in want_clusters.items()
                if cid not in have_clusters]
         if new:
-            db.executemany("INSERT INTO clusters (id, ean, name, brand, category_id) VALUES (?,?,?,?,NULL)", new)
+            # OR IGNORE: el lote puede reintentarse tras un timeout de Turso.
+            db.executemany("INSERT OR IGNORE INTO clusters (id, ean, name, brand, category_id) VALUES (?,?,?,?,NULL)", new)
         changed = [(pid, cid, how, conf, now) for pid, (cid, how, conf) in want_links.items()
                    if have_links.get(pid) != (cid, how, conf)]
         if changed:

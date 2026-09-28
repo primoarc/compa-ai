@@ -367,6 +367,10 @@ def _turso_value(cell: dict) -> Any:
     return cell.get("value")
 
 
+class TursoNetworkError(RuntimeError):
+    """Timeout, conexión cortada o 5xx: la petición puede reintentarse."""
+
+
 class TursoDatabase(Database):
     """Turso (libSQL) por HTTP: `POST {url}/v2/pipeline`."""
 
@@ -393,7 +397,9 @@ class TursoDatabase(Database):
             resp = self._client.post("/v2/pipeline", json={"requests": requests},
                                      timeout=timeout if timeout is not None else httpx.USE_CLIENT_DEFAULT)
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"turso: {type(exc).__name__}") from None
+            raise TursoNetworkError(f"turso: {type(exc).__name__}") from None
+        if resp.status_code >= 500:
+            raise TursoNetworkError(f"turso: HTTP {resp.status_code}")
         if resp.status_code != 200:
             raise RuntimeError(f"turso: HTTP {resp.status_code}")
         out = []
@@ -410,41 +416,40 @@ class TursoDatabase(Database):
         rowid = result.get("last_insert_rowid")
         return int(rowid) if rowid else int(result.get("affected_row_count") or 0)
 
-    def execute_batch(self, stmts: list[tuple[str, Sequence[Any]]]) -> None:
-        """Pipelines de 5 sentencias, 2 en paralelo, con reintentos. Solo para
-        escrituras idempotentes (la copia usa INSERT OR IGNORE): un timeout al
-        subir el cuerpo no dice si la base alcanzó a escribir."""
-        from concurrent.futures import ThreadPoolExecutor
+    def _send(self, stmts: list[tuple[str, Sequence[Any]]]) -> list[dict]:
+        """Pipeline con reintentos ante fallas de red. Solo para sentencias
+        idempotentes: tras un timeout no se sabe si la base alcanzó a escribir.
+        Las escrituras de la ingesta lo son (upserts, INSERT OR IGNORE/REPLACE,
+        UPDATE y DELETE que llevan al mismo estado)."""
+        for attempt in range(4):
+            try:
+                return self._pipeline(stmts, timeout=60.0)
+            except TursoNetworkError:
+                if attempt == 3:
+                    raise
+                time.sleep(2 ** (attempt + 1))
+        raise AssertionError("inalcanzable")
 
-        def send(chunk: list[tuple[str, Sequence[Any]]]) -> None:
-            for attempt in range(4):
-                try:
-                    self._pipeline(chunk, timeout=60.0)
-                    return
-                except RuntimeError as exc:
-                    # Red caída, timeout o 5xx se reintentan; un error de SQL o un 4xx no.
-                    retryable = str(exc).startswith("turso: HTTP 5") or (
-                        str(exc).startswith("turso: ") and "Error" in str(exc) or "Timeout" in str(exc))
-                    if not retryable or attempt == 3:
-                        raise
-                    time.sleep(2 ** (attempt + 1))
+    def execute_batch(self, stmts: list[tuple[str, Sequence[Any]]]) -> None:
+        """Pipelines de 5 sentencias, 2 en paralelo (la copia manda muchas filas por sentencia)."""
+        from concurrent.futures import ThreadPoolExecutor
 
         chunks = [stmts[i : i + 5] for i in range(0, len(stmts), 5)]
         with ThreadPoolExecutor(max_workers=2) as pool:
-            list(pool.map(send, chunks))
+            list(pool.map(self._send, chunks))
 
     def executemany(self, sql: str, rows: Iterable[Sequence[Any]]) -> None:
         batch: list[tuple[str, Sequence[Any]]] = []
         for row in rows:
             batch.append((sql, row))
             if len(batch) >= 200:
-                self._pipeline(batch)
+                self._send(batch)
                 batch = []
         if batch:
-            self._pipeline(batch)
+            self._send(batch)
 
     def query(self, sql: str, params: Sequence[Any] = ()) -> list[dict]:
-        result = self._pipeline([(sql, params)])[0]
+        result = self._send([(sql, params)])[0]
         cols = [c.get("name") for c in result.get("cols", [])]
         return [dict(zip(cols, (_turso_value(c) for c in row))) for row in result.get("rows", [])]
 

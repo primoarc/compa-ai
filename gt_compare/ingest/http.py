@@ -99,7 +99,11 @@ class PoliteClient:
                 else:
                     self._consecutive += 1
                     self.failures += 1
-                    logger.warning("%s %s -> %s", self.store_key, url[:100], resp.status_code)
+                    # server y el inicio del cuerpo distinguen un WAF (Akamai, Cloudflare)
+                    # de un error de la aplicación.
+                    snippet = " ".join(resp.text[:120].split()) if resp.text else ""
+                    logger.warning("%s %s -> %s server=%s %s", self.store_key, url[:100],
+                                   resp.status_code, resp.headers.get("server", "?"), snippet)
                 return resp
             attempt += 1
             if attempt > MAX_RETRIES:
