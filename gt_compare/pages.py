@@ -33,6 +33,9 @@ router = APIRouter()
 
 SITE_URL = "https://gt-compare.vercel.app"
 PAGE_CACHE = "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400"
+# /ofertas y /oferta-del-dia cambian cuando se aprueba o elige algo en el panel:
+# caché corta para que se vea en un par de minutos.
+FEED_CACHE = "public, max-age=0, s-maxage=60, stale-while-revalidate=60"
 OG_CACHE = "public, max-age=3600, s-maxage=86400"
 FEED_KINDS = ("oferta", "oferta_fuerte", "posible_error")
 FEED_STATUSES = ("published", "approved")
@@ -417,7 +420,7 @@ async def ofertas(categoria: str = "", tienda: str = "") -> HTMLResponse:
     page = layout("Ofertas de hoy en Guatemala — Compa AI", body,
                   description="Ofertas reales detectadas hoy en tiendas de Guatemala, comparadas contra el historial de cada producto.",
                   canonical=f"{SITE_URL}/ofertas", og_image=f"{SITE_URL}/og-image.png", current="ofertas")
-    return HTMLResponse(page, headers={"Cache-Control": PAGE_CACHE})
+    return HTMLResponse(page, headers={"Cache-Control": FEED_CACHE})
 
 
 def daily_deal(db: Database) -> Optional[dict]:
@@ -435,9 +438,9 @@ async def oferta_del_dia() -> Response:
     if d is None:
         body = '<h1>Oferta del día</h1><p class="muted">Todavía no elegimos la de hoy. Mientras tanto, mirá <a href="/ofertas">todas las ofertas</a>.</p>'
         return HTMLResponse(layout("Oferta del día — Compa AI", body, current="dia", noindex=True),
-                            headers={"Cache-Control": "public, max-age=0, s-maxage=300"})
+                            headers={"Cache-Control": FEED_CACHE})
     return RedirectResponse(f"/p/{d['product_id']}", status_code=302,
-                            headers={"Cache-Control": "public, max-age=0, s-maxage=300"})
+                            headers={"Cache-Control": FEED_CACHE})
 
 
 def _og_deal(db: Database, pid: int) -> dict:

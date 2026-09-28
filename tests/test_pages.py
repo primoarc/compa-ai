@@ -82,6 +82,7 @@ mem.execute("UPDATE products SET cur_cash_price=NULL WHERE id=?", (lap,))
 # --- ofertas ----------------------------------------------------------------
 r = client.get("/ofertas")
 check("ofertas 200", r.status_code, 200)
+check("ofertas con caché corta", "s-maxage=60" in r.headers["cache-control"], True)
 check("oferta publicada aparece", "Televisor Samsung 55" in r.text, True)
 check("price error sin aprobar no aparece", "Refrigeradora LG" in r.text, False)
 mem.execute("""INSERT INTO deals (product_id, detected_on, kind, score, price, reference, features, status)
