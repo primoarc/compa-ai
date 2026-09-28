@@ -380,7 +380,8 @@ class TursoDatabase(Database):
             transport=transport,
         )
 
-    def _pipeline(self, stmts: list[tuple[str, Sequence[Any]]]) -> list[dict]:
+    def _pipeline(self, stmts: list[tuple[str, Sequence[Any]]],
+                  timeout: Optional[float] = None) -> list[dict]:
         requests = [
             {"type": "execute", "stmt": {"sql": sql, "args": [_turso_arg(p) for p in params]}}
             for sql, params in stmts
@@ -389,7 +390,8 @@ class TursoDatabase(Database):
         # Los errores de httpx traen la URL completa de la base; en un log público
         # (Actions) eso expone el host. Se relanzan sin URL.
         try:
-            resp = self._client.post("/v2/pipeline", json={"requests": requests})
+            resp = self._client.post("/v2/pipeline", json={"requests": requests},
+                                     timeout=timeout if timeout is not None else httpx.USE_CLIENT_DEFAULT)
         except httpx.HTTPError as exc:
             raise RuntimeError(f"turso: {type(exc).__name__}") from None
         if resp.status_code != 200:
@@ -409,12 +411,24 @@ class TursoDatabase(Database):
         return int(rowid) if rowid else int(result.get("affected_row_count") or 0)
 
     def execute_batch(self, stmts: list[tuple[str, Sequence[Any]]]) -> None:
-        """Pipelines de 10 sentencias, 4 en paralelo: la latencia de red se solapa."""
+        """Pipelines de 5 sentencias, 2 en paralelo, con reintentos. Solo para
+        escrituras idempotentes (la copia usa INSERT OR IGNORE): un timeout al
+        subir el cuerpo no dice si la base alcanzó a escribir."""
         from concurrent.futures import ThreadPoolExecutor
 
-        chunks = [stmts[i : i + 10] for i in range(0, len(stmts), 10)]
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(self._pipeline, chunks))
+        def send(chunk: list[tuple[str, Sequence[Any]]]) -> None:
+            for attempt in range(4):
+                try:
+                    self._pipeline(chunk, timeout=60.0)
+                    return
+                except RuntimeError as exc:
+                    if "Timeout" not in str(exc) and "HTTP 5" not in str(exc) or attempt == 3:
+                        raise
+                    time.sleep(2 ** attempt)
+
+        chunks = [stmts[i : i + 5] for i in range(0, len(stmts), 5)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(send, chunks))
 
     def executemany(self, sql: str, rows: Iterable[Sequence[Any]]) -> None:
         batch: list[tuple[str, Sequence[Any]]] = []
