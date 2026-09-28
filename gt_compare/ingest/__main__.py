@@ -66,18 +66,22 @@ def record_writes(db: Database, day: str) -> str:
 # Orden de copia: primero lo que otras tablas referencian.
 COPY_TABLES = ("runs", "products", "price_history", "clusters", "product_clusters", "match_reviews",
                "decision_cache", "deals", "daily_pick", "alert_subscriptions")
-COPY_BATCH = 1000
+COPY_BATCH = 5000
+
+
+COPY_ROWS_PER_INSERT = 100  # filas por sentencia; 100 x 21 columnas queda lejos del límite de parámetros
 
 
 def copy_db(src: Database, dst: Database) -> dict:
     """Copia todas las filas de `src` a `dst` conservando ids. Es idempotente:
-    lo que ya está en el destino se salta (INSERT OR IGNORE)."""
+    lo que ya está en el destino se salta (INSERT OR IGNORE). Manda muchas filas
+    por sentencia: con una por sentencia, contra Turso eran ~40 s por 1.000."""
     counts = {}
     for table in COPY_TABLES:
         cols = [r["name"] for r in src.query(f"PRAGMA table_info({table})")]
         dst_cols = {r["name"] for r in dst.query(f"PRAGMA table_info({table})")}
         cols = [c for c in cols if c in dst_cols]
-        sql = f"INSERT OR IGNORE INTO {table} ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})"
+        row_marks = "(" + ", ".join("?" * len(cols)) + ")"
         total = 0
         offset = 0
         while True:
@@ -85,7 +89,13 @@ def copy_db(src: Database, dst: Database) -> dict:
                              (COPY_BATCH, offset))
             if not rows:
                 break
-            dst.executemany(sql, [tuple(r[c] for c in cols) for r in rows])
+            stmts = []
+            for i in range(0, len(rows), COPY_ROWS_PER_INSERT):
+                chunk = rows[i : i + COPY_ROWS_PER_INSERT]
+                sql = (f"INSERT OR IGNORE INTO {table} ({', '.join(cols)}) VALUES "
+                       + ", ".join([row_marks] * len(chunk)))
+                stmts.append((sql, [r[c] for r in chunk for c in cols]))
+            dst.execute_batch(stmts)
             total += len(rows)
             offset += COPY_BATCH
             logging.getLogger("gt_compare.ingest").info("copia %s: %s filas", table, total)

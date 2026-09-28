@@ -202,6 +202,11 @@ class Database:
     def query(self, sql: str, params: Sequence[Any] = ()) -> list[dict]:
         raise NotImplementedError
 
+    def execute_batch(self, stmts: list[tuple[str, Sequence[Any]]]) -> None:
+        """Varias sentencias distintas; en Turso viajan juntas."""
+        for sql, params in stmts:
+            self.execute(sql, params)
+
     def query_one(self, sql: str, params: Sequence[Any] = ()) -> Optional[dict]:
         rows = self.query(sql, params)
         return rows[0] if rows else None
@@ -402,6 +407,14 @@ class TursoDatabase(Database):
         result = self._pipeline([(sql, params)])[0]
         rowid = result.get("last_insert_rowid")
         return int(rowid) if rowid else int(result.get("affected_row_count") or 0)
+
+    def execute_batch(self, stmts: list[tuple[str, Sequence[Any]]]) -> None:
+        """Pipelines de 10 sentencias, 4 en paralelo: la latencia de red se solapa."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        chunks = [stmts[i : i + 10] for i in range(0, len(stmts), 10)]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(self._pipeline, chunks))
 
     def executemany(self, sql: str, rows: Iterable[Sequence[Any]]) -> None:
         batch: list[tuple[str, Sequence[Any]]] = []
