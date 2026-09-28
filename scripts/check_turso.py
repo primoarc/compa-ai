@@ -2,8 +2,9 @@
 
     GT_COMPARE_DB_URL=libsql://... TURSO_AUTH_TOKEN=... python scripts/check_turso.py
 
-Todo corre en una sola conexión (un pipeline) y sobre objetos TEMP, que
-desaparecen al cerrarla: no toca las tablas de la base. Además lista qué
+Todo corre en una sola conexión (un pipeline). Las escrituras van a tablas
+TEMP, que desaparecen al cerrarla; la búsqueda y los triggers (que Turso no
+permite en TEMP) se prueban leyendo los objetos reales. No modifica la base. Además lista qué
 objetos del esquema tiene la base y cuáles faltan (solo lectura).
 Sale con código 1 si algo falla.
 """
@@ -23,13 +24,6 @@ from gt_compare import db as dbmod  # noqa: E402
 CHECKS: list[tuple[str, str, list]] = [
     ("tabla temporal", "CREATE TEMP TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, k TEXT UNIQUE, "
      "name TEXT, price REAL, n INTEGER, d TEXT)", []),
-    ("FTS5 con contenido externo", "CREATE VIRTUAL TABLE temp.t_search USING fts5(name, content='t', "
-     "content_rowid='id', tokenize='unicode61 remove_diacritics 2')", []),
-    ("trigger con cuerpo de varias sentencias",
-     "CREATE TEMP TRIGGER t_ai AFTER INSERT ON t BEGIN "
-     "INSERT INTO t_search (rowid, name) VALUES (new.id, new.name); "
-     "INSERT INTO t_search (t_search, rowid, name) VALUES ('delete', new.id, new.name); "
-     "INSERT INTO t_search (rowid, name) VALUES (new.id, new.name); END", []),
     ("tipos: texto, float, entero, null", "INSERT INTO t (k, name, price, n, d) VALUES (?, ?, ?, ?, ?)",
      ["a", "Audífonos Sony WH-1000XM5", 1899.5, 3, None]),
     ("INSERT OR REPLACE", "INSERT OR REPLACE INTO t (id, k, name, price, n) VALUES (2, 'b', 'Licuadora Oster', 450.0, 1)", []),
@@ -37,9 +31,12 @@ CHECKS: list[tuple[str, str, list]] = [
      "ON CONFLICT(k) DO UPDATE SET n=excluded.n WHERE t.price IS NOT excluded.price", []),
     ("INSERT OR IGNORE", "INSERT OR IGNORE INTO t (k, name) VALUES ('a', 'duplicado')", []),
     ("leer tipos", "SELECT k, price, n, d FROM t WHERE k='a'", []),
-    ("búsqueda con acentos y prefijo, orden por rank",
-     "SELECT t.id FROM t_search JOIN t ON t.id = t_search.rowid WHERE t_search MATCH ? ORDER BY t_search.rank",
-     ['"audifono"*']),
+    # Turso no permite tablas virtuales ni triggers TEMP ("SQL not allowed statement"):
+    # la búsqueda y los triggers se prueban sobre los objetos reales, solo leyendo.
+    ("triggers del índice de búsqueda en la base",
+     "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'products_search_%'", []),
+    ("búsqueda con acentos y prefijo, orden por rank (solo lectura)",
+     "SELECT rowid FROM product_search WHERE product_search MATCH ? ORDER BY rank LIMIT 3", ['"audifono"*']),
     ("fechas y + para evitar índice", "SELECT date('now', '-3 day') <= date('now'), +1", []),
     ("PRAGMA table_info", "PRAGMA temp.table_info(t)", []),
     ("transacción en el mismo pipeline", "BEGIN", []),
