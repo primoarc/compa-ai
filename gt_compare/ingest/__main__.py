@@ -82,8 +82,12 @@ def copy_db(src: Database, dst: Database) -> dict:
         dst_cols = {r["name"] for r in dst.query(f"PRAGMA table_info({table})")}
         cols = [c for c in cols if c in dst_cols]
         row_marks = "(" + ", ".join("?" * len(cols)) + ")"
-        total = 0
-        offset = 0
+        # Reanudar: las filas se copian en orden, así que lo que ya tiene el destino
+        # es un prefijo. Se retrocede un lote por si el último quedó a medias.
+        have = dst.query_one(f"SELECT COUNT(*) AS n FROM {table}")
+        offset = max(0, int(have["n"] if have else 0) - COPY_BATCH)
+        offset -= offset % COPY_BATCH
+        total = offset
         while True:
             rows = src.query(f"SELECT {', '.join(cols)} FROM {table} ORDER BY rowid LIMIT ? OFFSET ?",
                              (COPY_BATCH, offset))

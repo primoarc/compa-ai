@@ -422,9 +422,12 @@ class TursoDatabase(Database):
                     self._pipeline(chunk, timeout=60.0)
                     return
                 except RuntimeError as exc:
-                    if "Timeout" not in str(exc) and "HTTP 5" not in str(exc) or attempt == 3:
+                    # Red caída, timeout o 5xx se reintentan; un error de SQL o un 4xx no.
+                    retryable = str(exc).startswith("turso: HTTP 5") or (
+                        str(exc).startswith("turso: ") and "Error" in str(exc) or "Timeout" in str(exc))
+                    if not retryable or attempt == 3:
                         raise
-                    time.sleep(2 ** attempt)
+                    time.sleep(2 ** (attempt + 1))
 
         chunks = [stmts[i : i + 5] for i in range(0, len(stmts), 5)]
         with ThreadPoolExecutor(max_workers=2) as pool:
