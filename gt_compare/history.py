@@ -16,7 +16,17 @@ from typing import Iterable, Optional, Sequence
 from .db import Database
 
 GAP_DAYS = 3
+# Un producto sin cambios se marca como visto cada EXTEND_EVERY días (cada fila
+# escrita cuenta en el plan de Turso). Los que se muestran como oferta, oferta
+# del día o están en la cola del panel se marcan todos los días.
+EXTEND_EVERY = 2
 URL_SKU_PREFIX = "url:"
+
+
+def seen_since(day: str) -> str:
+    """Primer día que cuenta como "visto hoy": con marcado cada EXTEND_EVERY días,
+    un producto sin cambios puede tener su intervalo cerrado hasta ayer."""
+    return (_d(day) - timedelta(days=EXTEND_EVERY - 1)).isoformat()
 
 
 def today_utc() -> str:
@@ -56,7 +66,8 @@ def _values_equal(row: dict, obs: Observation) -> bool:
 
 
 def plan_interval_writes(
-    open_rows: dict[int, dict], day: str, observations: Iterable[Observation]
+    open_rows: dict[int, dict], day: str, observations: Iterable[Observation],
+    daily: frozenset[int] = frozenset(),
 ) -> tuple[list[tuple], list[tuple], list[tuple], set[int]]:
     """Decide qué escribir para una corrida, sin tocar la base.
 
@@ -82,7 +93,8 @@ def plan_interval_writes(
             continue  # observación más vieja que lo guardado: se ignora
         if _values_equal(last, obs):
             if (today - end).days <= GAP_DAYS:
-                if today > end:
+                lag = (today - end).days
+                if lag >= EXTEND_EVERY or (lag >= 1 and obs.product_id in daily):
                     extend.append((day, obs.product_id, last["start_day"]))
                 continue
             insert.append((obs.product_id, day, day, obs.price, obs.list_price, obs.available, obs.cash_price))
@@ -120,13 +132,15 @@ def open_intervals(db: Database, product_ids: Sequence[int]) -> dict[int, dict]:
 
 
 def apply_observations(
-    db: Database, day: str, observations: list[Observation], run_id: Optional[int]
+    db: Database, day: str, observations: list[Observation], run_id: Optional[int],
+    daily: frozenset[int] = frozenset(),
 ) -> int:
-    """Escribe una corrida en el historial. Devuelve cuántos productos cambiaron."""
+    """Escribe una corrida en el historial. Devuelve cuántos productos cambiaron.
+    `daily`: productos que se marcan como vistos hoy aunque no hayan cambiado."""
     if not observations:
         return 0
     rows = open_intervals(db, [o.product_id for o in observations])
-    extend, trim, insert, changed = plan_interval_writes(rows, day, observations)
+    extend, trim, insert, changed = plan_interval_writes(rows, day, observations, daily)
     with db.transaction():
         if extend:
             db.executemany(

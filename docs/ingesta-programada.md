@@ -5,16 +5,26 @@ con `schedule`. En ambos casos la base de producción es Turso.
 
 ## Recomendación
 
-**GitHub Actions**, con dos condiciones antes de apagar el cron:
+**Híbrido: GitHub Actions para 11 tiendas y el cron local para Kemik** (y, si siguen con
+406, La Curacao y RadioShack). El cron local se queda hasta que se cumplan las dos
+condiciones del dueño: alcance de las 13 tiendas desde GitHub y una corrida manual completa
+contra Turso.
 
-1. El job `reachability` de CI (corre en este PR) muestra que las 13 tiendas
-   responden desde los servidores de GitHub. Si alguna bloquea IPs de
-   datacenter, esa tienda sigue en el cron local y el resto en Actions.
-2. Una corrida manual (`workflow_dispatch`) termina bien contra Turso.
+Resultado del job `reachability` de CI (28-sep, 30 productos por tienda desde GitHub):
 
-Motivo: no depende de que la Mac esté encendida a las 3 a. m., es gratis en un
-repo público, deja logs por corrida y ya quedó escrito (`.github/workflows/ingest.yml`).
-Mientras tanto el cron local sigue corriendo contra la base local.
+| Tienda | Resultado | Detalle |
+|---|---|---|
+| Kemik | **bloqueada** | 403 en todas las páginas (Cloudflare con IPs de datacenter); 0 productos |
+| La Curacao | parcial | 406 en 3 de 6 páginas |
+| RadioShack | parcial | 406 en 4 de 7 páginas |
+| Siman, Cemaco, Walmart | bien | los 400 eran un error nuestro (rango de precio "1e+06"), ya corregido |
+| Max, Steren, EPA, Intelaf, Novex, Sears, PriceSmart | bien | sin errores |
+
+Para La Curacao y RadioShack se bajó el ritmo (1 petición por segundo); el próximo job de
+CI dirá si alcanza. Kemik no tiene arreglo desde Actions sin un proxy residencial (pago).
+
+Motivo de fondo para Actions: no depende de que la Mac esté encendida a las 3 a. m., es
+gratis en un repo público y deja logs por corrida.
 
 ## Tiempo de corrida
 
@@ -80,40 +90,37 @@ alcance del PR lo va a mostrar.
 
 ## Escrituras en Turso
 
-Plan gratis: 10 M filas escritas por mes. Estimado el 28-sep con la base local (241 k
-productos vistos, 337 k intervalos), después de los ahorros de esta rama:
+Plan gratis: 10 M filas escritas por mes. Esquema aplicado (decisión del 28-sep): un
+producto sin cambios se marca como visto **cada dos días**; los que están en `/ofertas`, en la
+oferta del día o en la cola del panel se marcan **todos los días**. "Visto hoy" pasa a ser "visto
+hoy o ayer" (`history.seen_since`); un cambio de precio se guarda siempre el mismo día.
+
+Estimado con la base local (241 k productos vistos, 337 k intervalos):
 
 | Qué se escribe | Filas por día | De dónde sale el número |
 |---|---|---|
-| Historial: extender el intervalo de lo que no cambió | ~225 k | productos vistos por día (Novex 1 de cada 3 días, Kemik rota categorías) |
+| Historial: marcar como visto lo que no cambió | ~113 k | ~225 k productos vistos por día / 2 (Novex 1 de cada 3 días, Kemik rota) |
+| Historial: ídem, productos en ofertas, oferta del día y cola | ~3 k | se marcan a diario |
 | Historial: cambio de precio (cerrar intervalo + abrir otro) | ~24 k | ~5% cambia por día (relleno VTEX: Cemaco 5,6%, Siman 9,6%, Walmart 0,5%) |
 | Productos nuevos o con cambios | ~13,5 k | solo se escribe lo que cambió |
 | Ofertas del día (`deals`) | ~3,2 k | una fila por oferta por día |
 | Categoría de productos nuevos | ~1,5 k | |
 | Índice de búsqueda (trigger) | ~1,5 k | nombres nuevos |
-| Decisiones de Jev en cache | ~1 k | pares nuevos y validación de EAN; las de categoría ya no se guardan |
+| Decisiones de Jev en cache | ~1 k | pares nuevos y validación de EAN; las de categoría no se guardan |
 | Grupos y revisiones de matching | ~0,5 k | solo la diferencia |
 | Panel (aprobaciones, motivos, oferta del día), alertas, corridas | < 0,1 k | |
-| **Total** | **~270 k** | **~8,1 M por mes = ~81% del plan** |
+| **Total** | **~161 k** | **~4,8 M por mes = ~48% del plan** |
 
 Primer mes, además: copia de la base local (~0,9 M), cola de categorías débiles (~156 k) y
-primeros pares por nombre (~11 k) → **~9,2 M = ~92%**.
+primeros pares por nombre (~11 k) → **~5,9 M = ~59%**.
 
-Ahorros ya aplicados en esta rama: grupos y revisiones escriben solo la diferencia (antes
-~10 k filas por día), las decisiones de categoría de Jev no se guardan (~310 k filas en la
-cola inicial), y un producto sin cambios no se reescribe (antes ~240 k filas por día más).
+Antes de este cambio el estimado era ~81% (~92% el primer mes). Otros ahorros ya aplicados:
+grupos y revisiones escriben solo la diferencia (antes ~10 k filas por día), las decisiones de
+categoría de Jev no se guardan (~310 k filas en la cola inicial) y un producto sin cambios no
+se reescribe en `products`.
 
-**Pasa del 80%. Propuestas para bajarlo, de mayor a menor efecto:**
-
-1. **Extender los intervalos día por medio** (recomendado): un producto sin cambios se marca
-   como visto cada dos días en vez de cada día. Baja ~110 k filas por día → **~4,8 M por mes
-   (~48%)**. Costo: "visto hoy" pasa a ser "visto hoy o ayer", así que un producto que la tienda
-   quitó puede seguir un día más en /ofertas, y el fin del intervalo puede atrasarse un día.
-   Los cambios de precio se siguen guardando el mismo día.
-2. **Una fila por oferta mientras dure**, no una por día: ~90 k filas menos por mes.
-3. **Plan Developer de Turso** (US$4,99 por mes, 25 M filas): servicio pago, lo decide el dueño.
-
-Ninguna de las tres está aplicada: esperan decisión.
+Quedan disponibles si hiciera falta: una fila por oferta mientras dure (~90 k filas menos por
+mes) y el plan Developer de Turso (US$4,99 por mes, 25 M filas; pago, lo decide el dueño).
 
 **Cómo se vigila:** cada comando que escribe suma sus filas en la tabla `db_usage` (por mes) e
 imprime `Escrituras del mes AAAA-MM: N filas (X% del plan gratis de Turso)`. Desde el 80% la
@@ -121,6 +128,27 @@ línea empieza con `AVISO:` y aparece destacada en el resumen de la corrida en A
 contador no ve las filas que escriben los triggers (índice de búsqueda, ~1,5 k por día) ni las
 del sitio (alertas y panel, decenas por día): el número real está en el panel de Turso. El
 límite se cambia con `TURSO_WRITE_LIMIT`.
+
+## Compatibilidad con Turso
+
+- **Falla del primer `copy` (28-sep):** `split_sql` cortaba el esquema en un `;` que estaba
+  dentro de un comentario (`-- extiende end_day; si cambia, ...`), y Turso rechazó el fragmento
+  "si cambia...". Ahora los comentarios se quitan respetando comillas y solo se corta donde
+  SQLite da la sentencia por completa (`sqlite3.complete_statement`). Hay test que ejecuta cada
+  fragmento del esquema por separado y compara el resultado con el esquema completo.
+- **Qué quedó en la base después de la falla:** el pipeline de Turso ejecuta cada sentencia
+  aunque otra falle, así que se crearon todas las tablas, índices, el índice de búsqueda y los
+  triggers, menos `price_history` y su índice `ix_ph_end`. No se copió ningún dato. Simulado
+  localmente: la migración corregida completa el esquema sobre ese estado y el `copy` se puede
+  repetir sin borrar nada (es idempotente: la segunda pasada no escribe filas).
+- **Prueba contra Turso real sin tocar la base:** `scripts/check_turso.py` corre en una sola
+  conexión, sobre tablas TEMP, todo lo que usa el código (tipos, FTS5 con acentos y `rank`,
+  triggers, upsert con `WHERE`, `INSERT OR REPLACE`, fechas, transacción) y lista qué objetos
+  del esquema tiene la base.
+- **Transacciones:** con Turso cada llamada es un pipeline aparte, así que `transaction()` no
+  agrupa. Las escrituras están hechas para repararse solas en la corrida siguiente (upserts,
+  `INSERT OR IGNORE`, intervalos que se recalculan); lo peor que deja una corrida cortada a la
+  mitad es un producto con un día sin marcar.
 
 ## Que GitHub no desactive el schedule
 
@@ -154,6 +182,12 @@ source .venv/bin/activate
 read -r "TURSO_URL?URL de Turso (libsql://...): "
 read -rs "TURSO_TOKEN?Token de Turso: "; echo
 ```
+
+0. Probar la compatibilidad con Turso (no modifica la base; sale con código 1 si algo falla):
+
+   ```bash
+   GT_COMPARE_DB_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" python scripts/check_turso.py
+   ```
 
 1. Copiar la base local a Turso (una vez; se puede repetir, lo que ya está se salta):
 

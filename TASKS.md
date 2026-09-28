@@ -62,8 +62,12 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Estimado de escrituras en Turso + aviso del 80% en cada corrida
 - [x] Aviso de inactividad de 60 días (issue desde el día 45)
 - [x] Kemik verificado: 0 errores con el ritmo nuevo
-- [ ] Decidir cómo bajar escrituras de Turso (estimado 81%)
-- [ ] Squash, push y PR
+- [x] Escrituras de Turso: marcado día por medio salvo ofertas, oferta del día y cola (estimado 48%)
+- [x] Squash, push y PR
+- [x] Falla del copy contra Turso: split_sql cortaba en un ";" dentro de un comentario (corregido, con test)
+- [x] Rango de precio VTEX "1e+06" daba HTTP 400: 6 productos sobre Q20.000 no se leían (corregido)
+- [x] Script de compatibilidad con Turso sin tocar la base (scripts/check_turso.py)
+- [ ] Copy contra Turso (lo corre el dueño)
 
 ## Cierre
 - [x] Chequeo de tipos (pyright, todo el paquete) y 14 suites en verde

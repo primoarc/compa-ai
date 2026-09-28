@@ -170,6 +170,21 @@ async def ean_validation():
 
 asyncio.run(ean_validation())
 
+# --- qué se marca como visto todos los días ------------------------------------
+from gt_compare.ingest.runner import daily_marked  # noqa: E402
+
+m = dbmod.open_db(":memory:")
+m.executemany("INSERT INTO deals (product_id, detected_on, kind, score, price, status) VALUES (?,?,?,?,?,?)", [
+    (1, d(-1), "oferta", 20, 10, "published"),     # día viejo: no cuenta
+    (2, TODAY, "oferta", 20, 10, "published"),     # en /ofertas
+    (3, TODAY, "posible_error", 90, 10, "pending"),  # en la cola del panel
+    (4, TODAY, "posible_error", 90, 10, "discarded"),
+    (5, TODAY, "descuento_falso", 5, 10, "flagged"),
+])
+old_pick = m.execute("INSERT INTO deals (product_id, detected_on, kind, score, price, status) VALUES (6, ?, 'oferta', 1, 1, 'approved')", (d(-1),))
+m.execute("INSERT INTO daily_pick (day, deal_id, chosen_at) VALUES (date('now'), ?, 'x')", (old_pick,))
+check("marcados a diario", sorted(daily_marked(m)), [2, 3, 6])
+
 if failures:
     print(f"{len(failures)} fallos:")
     for f in failures:

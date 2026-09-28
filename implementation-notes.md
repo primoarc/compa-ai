@@ -40,3 +40,6 @@
 - **Sin keepalive con commits automáticos.** El proyecto más usado para eso está deshabilitado por GitHub por términos de servicio. En su lugar, desde el día 45 sin commits la corrida abre un issue de aviso; reactivar es una acción humana.
 - **Escrituras de Turso vigiladas por la propia ingesta** (`db_usage`), con aviso desde el 80%. Estimado ~81% en régimen y ~92% el primer mes; la propuesta para bajarlo (extender intervalos día por medio) espera decisión porque cambia qué significa "visto hoy".
 - **Scripts viejos borrados** (`scripts/sweep_all.py`, `scripts/deal_alert.py`), por pedido del dueño; quedan en el historial de git.
+- **Marcado día por medio (decisión del dueño, 28-sep).** Productos sin cambios se marcan como vistos cada 2 días; los de /ofertas, oferta del día y cola del panel, a diario. "Visto hoy" pasa a "visto hoy o ayer". Estimado de escrituras en Turso: ~48% del plan en régimen, ~59% el primer mes.
+- **split_sql con `sqlite3.complete_statement`.** El primer copy contra Turso falló por un `;` en un comentario del esquema; los comentarios se quitan antes de partir.
+- **Kemik no se alcanza desde GitHub (403 en todo).** Queda en el cron local; La Curacao y RadioShack dieron 406 parcial y se les bajó el ritmo.

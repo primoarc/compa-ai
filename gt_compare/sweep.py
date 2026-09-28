@@ -97,16 +97,23 @@ async def _buckets(
     exacto: la categoría Moda, con 12,990 productos, se reparte en rangos que
     suman 12,981.
     """
-    fqs = [f"C:{cat_id}", f"P:[{lo:g} TO {hi:g}]"]
+    fqs = [f"C:{cat_id}", _price_fq(lo, hi)]
     if total <= MAX_OFFSET or profundidad >= 8 or hi - lo < 2:
         if total:
             salida.append({"fqs": fqs, "total": total})
         return
     medio = round((lo + hi) / 2, 2)
     for a, b in ((lo, medio), (medio, hi)):
-        t = await _total(client, store, [f"C:{cat_id}", f"P:[{a:g} TO {b:g}]"])
+        t = await _total(client, store, [f"C:{cat_id}", _price_fq(a, b)])
         if t:
             await _buckets(client, store, cat_id, a, b, t, salida, profundidad + 1)
+
+
+def _price_fq(lo: float, hi: float) -> str:
+    """Filtro de precio VTEX. Sin notación científica: "1e+06" da HTTP 400."""
+    def num(x: float) -> str:
+        return f"{x:.2f}".rstrip("0").rstrip(".")
+    return f"P:[{num(lo)} TO {num(hi)}]"
 
 
 async def _slices(client: httpx.AsyncClient, store: Store) -> list:
@@ -131,7 +138,7 @@ async def _slices(client: httpx.AsyncClient, store: Store) -> list:
         # vacíos: casi todo el catálogo vive debajo de Q3,000. Se arranca con
         # cortes de precio realistas y solo se bisecta dentro del que no quepa.
         for lo, hi in zip(PRICE_EDGES, PRICE_EDGES[1:]):
-            t = await _total(client, store, [f"C:{cid}", f"P:[{lo:g} TO {hi:g}]"])
+            t = await _total(client, store, [f"C:{cid}", _price_fq(lo, hi)])
             if t:
                 await _buckets(client, store, cid, lo, hi, t, salida)
     return salida

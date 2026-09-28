@@ -26,7 +26,7 @@ from typing import Optional
 from .db import Database
 from .decide import Decider
 from .decide import schemas
-from .history import GAP_DAYS, previous_price, window_stats
+from .history import GAP_DAYS, previous_price, seen_since, window_stats
 from .products import MAX_PLAUSIBLE_PRICE
 
 logger = logging.getLogger("gt_compare.detector")
@@ -152,10 +152,10 @@ def _load(db: Database, today: str) -> tuple[list[dict], dict[int, list[dict]], 
     products = db.query(
         """SELECT p.*, pc.cluster_id FROM products p
            LEFT JOIN product_clusters pc ON pc.product_id = p.id AND pc.confidence >= ?
-           WHERE p.id IN (SELECT product_id FROM price_history WHERE end_day = ?)
+           WHERE p.id IN (SELECT product_id FROM price_history WHERE end_day >= ?)
              AND COALESCE(p.cur_available, 1) > 0 AND p.cur_price > 0
              AND p.cur_price < ? AND p.sku_level = 1""",
-        (schemas.MATCH_ACCEPT, today, MAX_PLAUSIBLE_PRICE),
+        (schemas.MATCH_ACCEPT, seen_since(today), MAX_PLAUSIBLE_PRICE),
     )
     ids = [p["id"] for p in products]
     since = (date.fromisoformat(today) - timedelta(days=95)).isoformat()

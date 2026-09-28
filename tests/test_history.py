@@ -31,8 +31,15 @@ def iv(start, end, price, list_price=None, available=1):
 # --- plan_interval_writes -----------------------------------------------------
 last = {1: iv("2026-09-01", "2026-09-05", 100.0)}
 ext, trim, ins, ch = plan_interval_writes(last, "2026-09-06", [Observation(1, 100.0, None, 1)])
-check("mismo precio al día siguiente extiende", (ext, trim, ins, ch),
-      ([("2026-09-06", 1, "2026-09-01")], [], [], set()))
+check("sin cambios al día siguiente no se escribe (marcado día por medio)", (ext, trim, ins, ch),
+      ([], [], [], set()))
+ext, trim, ins, ch = plan_interval_writes(last, "2026-09-07", [Observation(1, 100.0, None, 1)])
+check("al segundo día sí se extiende", ext, [("2026-09-07", 1, "2026-09-01")])
+ext, trim, ins, ch = plan_interval_writes(last, "2026-09-06", [Observation(1, 100.0, None, 1)],
+                                          daily=frozenset({1}))
+check("en /ofertas o en la cola se marca todos los días", ext, [("2026-09-06", 1, "2026-09-01")])
+from gt_compare.history import seen_since  # noqa: E402
+check("visto hoy = intervalo que termina hoy o ayer", seen_since("2026-09-28"), "2026-09-27")
 
 ext, trim, ins, ch = plan_interval_writes(last, "2026-09-05", [Observation(1, 100.0, None, 1)])
 check("mismo precio el mismo día no escribe", (ext, trim, ins, ch), ([], [], [], set()))
@@ -126,7 +133,7 @@ check("cambio contado", n, 1)
 apply_observations(mem, "2026-09-03", [Observation(legacy_id, 90.0, None, 1)], None)
 rows = series(mem, legacy_id)
 check("serie", [(r["start_day"], r["end_day"], r["price"]) for r in rows],
-      [("2026-09-01", "2026-09-01", 100.0), ("2026-09-02", "2026-09-03", 90.0)])
+      [("2026-09-01", "2026-09-01", 100.0), ("2026-09-02", "2026-09-02", 90.0)])
 
 upsert_products(mem, [rec("123", 90.0, ean=None)], "2026-09-04")
 check("EAN no se pierde si la corrida no lo trae",
@@ -151,10 +158,28 @@ upsert_products(mem, [rec("123", 85.0, ean="7501031311309")], "2026-09-06")
 check("con cambio se escribe", writes, [1])
 del mem.executemany
 
-# --- esquema: triggers enteros y migración de bases viejas ---------------------
+# --- esquema: el script partido para Turso es SQL válido, sentencia por sentencia ---
+import sqlite3 as _sq  # noqa: E402
+
 stmts = dbmod.split_sql(dbmod.SCHEMA)
 triggers = [x for x in stmts if x.upper().startswith("CREATE TRIGGER")]
 check("triggers completos", (len(triggers), all(x.upper().endswith("END") for x in triggers)), (3, True))
+check("sin comentarios en lo que se manda", any("--" in x for x in stmts), False)
+one_by_one = _sq.connect(":memory:")
+bad = []
+for x in stmts:
+    try:
+        one_by_one.execute(x)
+    except _sq.Error as exc:
+        bad.append((x[:40], str(exc)))
+check("cada fragmento es una sentencia válida", bad, [])
+whole = _sq.connect(":memory:")
+whole.executescript(dbmod.SCHEMA)
+q = "SELECT type, name, tbl_name FROM sqlite_master ORDER BY name"
+check("mismo esquema que executescript", one_by_one.execute(q).fetchall(), whole.execute(q).fetchall())
+check("; dentro de comentario y de string",
+      dbmod.split_sql("-- a; b\nINSERT INTO t VALUES ('x;y -- z'); /* c; */ SELECT 1"),
+      ["INSERT INTO t VALUES ('x;y -- z')", "SELECT 1"])
 
 import sqlite3, tempfile, os  # noqa: E402,E401
 old = os.path.join(tempfile.mkdtemp(), "old.db")

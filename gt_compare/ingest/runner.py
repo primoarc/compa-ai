@@ -28,6 +28,9 @@ PACING = {
     "pricesmart": (2, 0.5),
     "novex": (2, 0.5),
     "sears": (2, 0.5),
+    # Desde IPs de GitHub respondieron 406 a la mitad de las páginas con 0,3 s.
+    "curacao": (1, 1.0),
+    "radioshack": (1, 1.0),
 }
 DEFAULT_PACING = (3, 0.3)
 
@@ -35,6 +38,20 @@ DEFAULT_PACING = (3, 0.3)
 # cobra cada búsqueda a la tienda: un recorrido completo son ~300.
 CADENCE_DAYS = {"novex": 3}
 VTEX_PACING = (4, 0.15)
+
+
+def daily_marked(db: Database) -> frozenset[int]:
+    """Productos que se marcan como vistos todos los días: los que están en
+    /ofertas o en la cola del panel (último día de ofertas) y la oferta del día."""
+    rows = db.query(
+        """SELECT product_id FROM deals
+           WHERE detected_on = (SELECT MAX(detected_on) FROM deals)
+             AND status IN ('published', 'approved', 'pending')
+           UNION
+           SELECT d.product_id FROM daily_pick dp JOIN deals d ON d.id = dp.deal_id
+           WHERE dp.day >= date('now', '-1 day')"""
+    )
+    return frozenset(r["product_id"] for r in rows)
 
 
 def enumerator_for(store: Store) -> Optional[Callable]:
@@ -78,6 +95,7 @@ async def run_store(
     concurrency, interval = (
         VTEX_PACING if store.kind == "vtex" else PACING.get(store.key, DEFAULT_PACING)
     )
+    daily = daily_marked(db)
     changed = 0
     batch: list[ProductRecord] = []
     status = "ok"
@@ -93,7 +111,7 @@ async def run_store(
             for r in batch
             if r.store_sku in ids
         ]
-        changed += apply_observations(db, day, obs, run_id)
+        changed += apply_observations(db, day, obs, run_id, daily)
         batch = []
 
     try:

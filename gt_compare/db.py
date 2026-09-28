@@ -12,7 +12,6 @@ configurar, `get_db()` devuelve None y el sitio funciona como antes.
 from __future__ import annotations
 
 import os
-import re
 import sqlite3
 import threading
 import time
@@ -283,25 +282,58 @@ class SQLiteDatabase(Database):
         self._conn.close()
 
 
-_TRIGGER = re.compile(r"^CREATE\s+TRIGGER", re.I)
-_TRIGGER_END = re.compile(r"\bEND$", re.I)
+def _strip_comments(sql: str) -> str:
+    """Quita comentarios `--` y `/* */` sin tocar lo que está entre comillas."""
+    out: list[str] = []
+    i, n = 0, len(sql)
+    quote: Optional[str] = None
+    while i < n:
+        ch = sql[i]
+        if quote:
+            out.append(ch)
+            if ch == quote:
+                if i + 1 < n and sql[i + 1] == quote:  # comilla escapada: '' o ""
+                    out.append(sql[i + 1])
+                    i += 1
+                else:
+                    quote = None
+        elif ch in ("'", '"'):
+            quote = ch
+            out.append(ch)
+        elif sql.startswith("--", i):
+            while i < n and sql[i] != "\n":
+                i += 1
+            continue
+        elif sql.startswith("/*", i):
+            end = sql.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            continue
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def split_sql(sql: str) -> list[str]:
-    """Separa un script en sentencias sin romper el cuerpo de los triggers."""
+    """Separa un script en sentencias para la API HTTP de Turso.
+
+    Un ";" solo cierra una sentencia cuando SQLite la da por completa, así que
+    no se corta dentro de strings ni del cuerpo de un trigger. Los comentarios
+    se quitan antes: un ";" dentro de un comentario cortó el esquema en dos la
+    primera vez que se migró contra Turso.
+    """
     out: list[str] = []
-    buf: list[str] = []
-    for part in sql.split(";"):
-        buf.append(part)
-        stmt = ";".join(buf)
-        body = "\n".join(ln for ln in stmt.splitlines() if not ln.strip().startswith("--")).strip()
-        if not body:
-            buf = []
-            continue
-        if _TRIGGER.match(body) and not _TRIGGER_END.search(body):
-            continue  # el ";" era interno al trigger
-        out.append(body)
-        buf = []
+    buf = ""
+    for part in _strip_comments(sql).split(";"):
+        buf += part + ";"
+        if sqlite3.complete_statement(buf):
+            stmt = buf.strip().rstrip(";").strip()
+            if stmt:
+                out.append(stmt)
+            buf = ""
+    rest = buf.rstrip(";").strip()
+    if rest:
+        out.append(rest)
     return out
 
 

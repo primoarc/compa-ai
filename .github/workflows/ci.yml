@@ -17,13 +17,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-      - run: pip install -e . pyright
+      - run: pip install -e ".[web]" pyright
       - name: Suites
         run: |
           set -e
           for t in tests/test_*.py; do echo "== $t"; python "$t"; done
       - name: Tipos
-        run: pyright --pythonversion 3.9 gt_compare scripts/benchmark_jev.py
+        run: pyright --pythonversion 3.9 gt_compare scripts
 
   # ¿Las tiendas responden desde los servidores de GitHub? Es la condición para
   # mover la ingesta diaria a Actions. No falla el PR: solo informa.

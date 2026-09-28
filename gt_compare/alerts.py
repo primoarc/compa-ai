@@ -11,6 +11,7 @@ import logging
 import os
 
 from .db import Database
+from .history import seen_since
 
 logger = logging.getLogger("gt_compare.alerts")
 
@@ -20,14 +21,14 @@ def send_enabled() -> bool:
 
 
 def due(db: Database, day: str) -> list[dict]:
-    """Suscripciones activas cuyo producto, visto hoy y disponible, llegó al precio pedido."""
+    """Suscripciones activas cuyo producto, visto en la última corrida y disponible, llegó al precio pedido."""
     return db.query(
         """SELECT a.id, a.whatsapp, a.target_price, p.id AS product_id, p.name, p.cur_price, p.url
            FROM alert_subscriptions a JOIN products p ON p.id = a.product_id
-           WHERE a.status = 'active' AND p.id IN (SELECT product_id FROM price_history WHERE end_day = ?)
+           WHERE a.status = 'active' AND p.id IN (SELECT product_id FROM price_history WHERE end_day >= ?)
              AND COALESCE(p.cur_available, 1) > 0
              AND p.cur_price <= a.target_price""",
-        (day,),
+        (seen_since(day),),
     )
 
 
