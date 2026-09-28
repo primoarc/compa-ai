@@ -1,0 +1,138 @@
+{
+ "response": {
+  "groups": [
+   {
+    "group_id": "1339",
+    "display_name": "Tiendas MAX",
+    "count": 29764,
+    "data": {
+     "url": "",
+     "level": 1,
+     "category_type": "Base"
+    },
+    "parents": [],
+    "children": [
+     {
+      "group_id": "8784",
+      "display_name": "Marketplace Backend",
+      "count": 25766,
+      "data": {
+       "url": "marketplace-backend-mrkpl",
+       "level": 2,
+       "category_type": ""
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     },
+     {
+      "group_id": "2158",
+      "display_name": "Ofertas",
+      "count": 16200,
+      "data": {
+       "url": "ofertas-web",
+       "level": 2,
+       "category_type": "Promoción"
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     },
+     {
+      "group_id": "16731",
+      "display_name": "Moda",
+      "count": 6733,
+      "data": {
+       "url": "moda",
+       "level": 2,
+       "category_type": "Base"
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     },
+     {
+      "group_id": "1727",
+      "display_name": "Marcas",
+      "count": 4408,
+      "data": {
+       "url": "marcas",
+       "level": 2,
+       "category_type": "Marca"
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     },
+     {
+      "group_id": "1346",
+      "display_name": "Belleza y Cuidado Personal",
+      "count": 4324,
+      "data": {
+       "url": "cuidado-personal",
+       "level": 2,
+       "category_type": "Base"
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     },
+     {
+      "group_id": "28786",
+      "display_name": "Bebidas",
+      "count": 281,
+      "data": {
+       "url": "bebidas",
+       "level": 2,
+       "category_type": "Base"
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     },
+     {
+      "group_id": "1347",
+      "display_name": "Movilidad",
+      "count": 156,
+      "data": {
+       "url": "movilidad",
+       "level": 2,
+       "category_type": "Base"
+      },
+      "children": [],
+      "parents": [
+       {
+        "display_name": "Tiendas MAX",
+        "group_id": "1339"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

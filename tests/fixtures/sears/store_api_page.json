@@ -1,0 +1,305 @@
+[
+ {
+  "id": 900101,
+  "name": "JUEGO DE CARTAS DEMO ACME",
+  "permalink": "https://sears.com.gt/producto/juego-de-cartas-demo-acme/",
+  "sku": "500101",
+  "type": "simple",
+  "on_sale": false,
+  "prices": {
+   "price": "6000",
+   "regular_price": "6000",
+   "sale_price": "6000",
+   "price_range": null,
+   "currency_code": "GTQ",
+   "currency_symbol": "Q",
+   "currency_minor_unit": 2,
+   "currency_decimal_separator": ".",
+   "currency_thousand_separator": ",",
+   "currency_prefix": "Q",
+   "currency_suffix": ""
+  },
+  "is_in_stock": true,
+  "categories": [
+   {
+    "id": 75,
+    "name": "Unisex",
+    "slug": "unisex"
+   }
+  ],
+  "images": [
+   {
+    "src": "https://sears.com.gt/wp-content/uploads/500101.jpg"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 0,
+    "name": "Unidad de medida",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "cm",
+      "slug": "cm"
+     }
+    ]
+   },
+   {
+    "id": 0,
+    "name": "Color",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "Multicolor",
+      "slug": "Multicolor"
+     }
+    ]
+   }
+  ],
+  "brands": []
+ },
+ {
+  "id": 900102,
+  "name": "BATIDORA DE MANO DEMO MARCA DEMO",
+  "permalink": "https://sears.com.gt/producto/batidora-de-mano-demo-marca-demo/",
+  "sku": "500102",
+  "type": "simple",
+  "on_sale": true,
+  "prices": {
+   "price": "36000",
+   "regular_price": "40000",
+   "sale_price": "36000",
+   "price_range": null,
+   "currency_code": "GTQ",
+   "currency_symbol": "Q",
+   "currency_minor_unit": 2,
+   "currency_decimal_separator": ".",
+   "currency_thousand_separator": ",",
+   "currency_prefix": "Q",
+   "currency_suffix": ""
+  },
+  "is_in_stock": true,
+  "categories": [
+   {
+    "id": 44,
+    "name": "Electrodomésticos Pequeños",
+    "slug": "electrodomesticos-pequenos"
+   }
+  ],
+  "images": [
+   {
+    "src": "https://sears.com.gt/wp-content/uploads/imgSears/500102.jpg"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 0,
+    "name": "Costo de Envio",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": []
+   },
+   {
+    "id": 0,
+    "name": "Unidad de medida",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "pulgadas",
+      "slug": "pulgadas"
+     }
+    ]
+   }
+  ],
+  "brands": []
+ },
+ {
+  "id": 900103,
+  "name": "CUATRIMOTO MONTABLE DEMO VERDE",
+  "permalink": "https://sears.com.gt/producto/cuatrimoto-montable-demo-verde/",
+  "sku": "500103",
+  "type": "simple",
+  "on_sale": true,
+  "prices": {
+   "price": "60000",
+   "regular_price": "70000",
+   "sale_price": "60000",
+   "price_range": null,
+   "currency_code": "GTQ",
+   "currency_symbol": "Q",
+   "currency_minor_unit": 2,
+   "currency_decimal_separator": ".",
+   "currency_thousand_separator": ",",
+   "currency_prefix": "Q",
+   "currency_suffix": ""
+  },
+  "is_in_stock": false,
+  "categories": [
+   {
+    "id": 128,
+    "name": "Juegos de Patio",
+    "slug": "juegos-de-patio"
+   }
+  ],
+  "images": [
+   {
+    "src": "https://sears.com.gt/wp-content/uploads/imgSears/500103.jpg"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 0,
+    "name": "Costo de Envio",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": []
+   },
+   {
+    "id": 0,
+    "name": "Unidad de medida",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "cm",
+      "slug": "cm"
+     }
+    ]
+   }
+  ],
+  "brands": []
+ },
+ {
+  "id": 12001,
+  "name": "INODORO EDUCATIVO DEMO",
+  "permalink": "https://sears.com.gt/producto/inodoro-educativo-demo/",
+  "sku": "500104-main",
+  "type": "variable",
+  "on_sale": true,
+  "prices": {
+   "price": "22000",
+   "regular_price": "26000",
+   "sale_price": "22000",
+   "price_range": null,
+   "currency_code": "GTQ",
+   "currency_symbol": "Q",
+   "currency_minor_unit": 2,
+   "currency_decimal_separator": ".",
+   "currency_thousand_separator": ",",
+   "currency_prefix": "Q",
+   "currency_suffix": ""
+  },
+  "is_in_stock": true,
+  "categories": [
+   {
+    "id": 177,
+    "name": "Accesorios y Muebles",
+    "slug": "accesorios-y-muebles"
+   }
+  ],
+  "images": [
+   {
+    "src": "https://sears.com.gt/wp-content/uploads/imgSears/500104.jpg"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 0,
+    "name": "Costo de envio",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "35",
+      "slug": "35"
+     }
+    ]
+   },
+   {
+    "id": 0,
+    "name": "Unidad de medida",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "cm",
+      "slug": "cm"
+     }
+    ]
+   }
+  ],
+  "brands": []
+ },
+ {
+  "id": 900101,
+  "name": "JUEGO DE CARTAS DEMO ACME",
+  "permalink": "https://sears.com.gt/producto/juego-de-cartas-demo-acme/",
+  "sku": "500101",
+  "type": "simple",
+  "on_sale": false,
+  "prices": {
+   "price": "6000",
+   "regular_price": "6000",
+   "sale_price": "6000",
+   "price_range": null,
+   "currency_code": "GTQ",
+   "currency_symbol": "Q",
+   "currency_minor_unit": 2,
+   "currency_decimal_separator": ".",
+   "currency_thousand_separator": ",",
+   "currency_prefix": "Q",
+   "currency_suffix": ""
+  },
+  "is_in_stock": true,
+  "categories": [
+   {
+    "id": 75,
+    "name": "Unisex",
+    "slug": "unisex"
+   }
+  ],
+  "images": [
+   {
+    "src": "https://sears.com.gt/wp-content/uploads/500101.jpg"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 0,
+    "name": "Unidad de medida",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "cm",
+      "slug": "cm"
+     }
+    ]
+   },
+   {
+    "id": 0,
+    "name": "Color",
+    "taxonomy": null,
+    "has_variations": false,
+    "terms": [
+     {
+      "id": 0,
+      "name": "Multicolor",
+      "slug": "Multicolor"
+     }
+    ]
+   }
+  ],
+  "brands": []
+ }
+]

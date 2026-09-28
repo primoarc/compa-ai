@@ -1,0 +1,45 @@
+# Notas de implementación
+
+## Decisions
+
+- **Jev por HTTP directo, sin SDK.** `typesafe-sdk` 0.7.2 exige Python ≥3.10 y el proyecto corre en 3.9. El API es un solo `POST /v1/systemone`; se llama con el `httpx` que ya usamos.
+- **Modelo fijado a `jev-1.13.0`.** Los umbrales se calibran contra una versión; el alias `jev-latest` puede moverse sin aviso.
+- **Base local SQLite, producción Turso por HTTP.** Mismo SQL. Sin cuenta de Turso el sitio en Vercel degrada a lo de hoy.
+- **La ingesta corre local por cron, no en Vercel ni en GitHub Actions.** Las IP de datacenter ya reciben 429 de Kemik.
+- **El catálogo no se sube al repo.** El repo es público y los términos de uso de las tiendas no permiten asumir redistribución.
+
+## Deviations
+
+- **Definición de done pide "build sin errores de TypeScript".** El proyecto es Python con HTML y JS sin framework; no hay TypeScript que compilar. Equivalente usado: módulos que importan sin errores, suites en verde y `pyright` sobre los módulos nuevos.
+- **Criterio de migración de Jev.** Las reglas determinísticas cuestan cero, así que Jev nunca gana en costo contra ellas. Se aplica así: Jev se migra para la porción que las reglas no resuelven cuando sube el recall sin bajar la precisión, y su costo proyectado es menor que el del LLM que haría lo mismo. Para intención de búsqueda se compara directo contra el LLM del planner actual.
+- **"Preview" se cumple con la vista previa local contra la base local.** El preview de Vercel de la rama compila y degrada sin credenciales de base.
+- **Causa extra "liquidacion" en el filtro de price errors.** El brief lista cinco causas; se agregó una sexta para liquidaciones o eventos anunciados por la tienda. Sin ella, una liquidación real se forzaba a "error real" o a otra causa que no aplica. Solo "error_real" entra a la cola, como pide el brief.
+- **Condición de pago incluye efectivo.** "condicion_tarjeta" cubre también precios solo en efectivo (Intelaf los muestra como precio principal).
+- **Max se recorre por rangos de precio, no por grupos.** Constructor.io corta en 10.000 resultados por consulta y sus grupos se solapan mucho; los rangos de precio del grupo raíz cubren ~99% del catálogo declarado.
+- **Kemik se recorre por partes.** Con el ritmo que exige (1 petición cada 1,5 s) el catálogo completo tarda más de una hora; cada corrida visita hasta 600 páginas empezando por una categoría distinta cada día.
+- **Magento por categorías del menú.** La búsqueda (`/catalogsearch`, `/search/`) está prohibida en su robots.txt; las páginas de categoría no.
+- **Fuente de las imágenes OG.** La fuente incluida en Pillow no trae tildes; se incluye Noto Sans (OFL) en `gt_compare/fonts/`.
+- **Tipografía del sitio.** Se reemplazaron Instrument Serif/Sans (Google Fonts, ~1 s bloqueando el render) por la fuente del sistema. Es lo que más bajó el LCP.
+- **Oferta del día sin Jev.** No hay verdad de terreno para medir "atractivo para compartir", así que no se puede demostrar que Jev gane. El panel sugiere por reglas (tramos de ahorro y score) y el dueño elige.
+- **Jev apagado por uso hasta el benchmark.** `JEV_USES` (vacío por defecto) enciende cada uso solo después de ganar en docs/benchmark-jev.md.
+- **Intención de búsqueda resuelta con reglas.** El caso del brief ("tele 55 barata") fallaba porque "barata" se exigía en el nombre del producto. Se agregaron las palabras de intención de precio a las stopwords de relevancia (tests incluidos); el tamaño ya lo manejaba la relevancia y los resultados ya salen ordenados por precio. El esquema de intención de Jev queda para el benchmark de latencia; no se conecta a la búsqueda salvo que gane.
+- **La key de TypeSafe no la toco.** Una regla de permisos bloquea leer `.env` y `.env.local`, así que no corro nada que la lea: el benchmark tiene modo `--rules-only` y el pipeline solo crea el cliente de Jev si algún uso está encendido en `JEV_USES`.
+- **Confianzas de matching calibradas con el benchmark.** EAN exacto 0,92 (113/123 en la auditoría manual) y regla de código de modelo 0,7 (2/3). Con el umbral de 0,85, la regla agrupa para mostrar "mismo modelo" pero no sirve de referencia de precio: en la primera corrida unía tintas "GI-25" con impresoras y generaba falsos price errors.
+- **Precios de relleno fuera.** Todo precio ≥ Q1.000.000 se trata como "no a la venta" (Siman y Max publican Q8M–Q99M); en la base local se borraron esas filas de la corrida de hoy.
+- **Orden del feed pondera el ahorro en quetzales** (log10), además del porcentaje: sin eso la primera corrida llenaba el feed con aretes de Siman al 30%.
+- **Umbral de dato corrupto:** caídas de más de 25x se clasifican como dato roto, no como error de precio.
+- **Búsqueda en vivo de las 4 tiendas Magento desde el catálogo diario** (pedido del dueño). Su robots.txt prohíbe `/search/` y `/catalogsearch/`; se responde con FTS5 sobre `products` y el precio se etiqueta con su edad. Sears pasó a la Store API (`/?s=` también está prohibido). Steren prohíbe toda URL con `?`: solo se lee la página 1 de cada categoría. Detalle en docs/robots.md.
+- **Contado contra tarjeta.** `price` es siempre el precio con cualquier medio de pago (el comparable entre tiendas); `cash_price` guarda el de contado cuando la tienda lo separa. Solo Intelaf lo hace ("Beneficio Efectivo", 1.721 productos). Las promociones de marca de Intelaf ("Promo X", "Precio PROMO") se tratan como válidas para todo medio de pago (NO CONFIRMADO en la tienda).
+- **Validación de pares por EAN antes de sostener una oferta fuerte o un posible error.** Con Jev (uso `match`) va por el question set de matching; sin Jev, una regla que busca contradicciones en el nombre. La regla atrapa 1 de 10 EAN malos auditados y rechaza 1 de 113 buenos: la validación útil depende de Jev.
+- **Escrituras mínimas para Turso.** Un producto sin cambios no se reescribe; "visto hoy" se lee del intervalo de historial que termina hoy (`ix_ph_end`). `last_seen` pasa a ser "última vez que cambió algo".
+- **Kemik: 404 falsos bajo carga.** En la corrida del 28-sep las 144 fallas fueron 404 a páginas que existen (sueltas daban 200 o 429). Se reintenta un 404 una vez tras 20 s y el ritmo bajó de 1,5 s a 2,5 s por petición.
+- **Admin sin token en la URL.** Entrada por POST (`/admin/login`) que deja una cookie httpOnly y SameSite=Strict; 5 intentos por 15 minutos por IP.
+- **Fixtures sintéticos.** Los 12 fixtures de tests reemplazan los listados reales por datos inventados con la misma estructura (EAN inventados con dígito verificador válido, prefijo 1234567).
+- **El sitio no migra el esquema.** `get_db()` abre la base sin migrar (lo hace la ingesta); migrar en cada arranque en frío eran ~20 viajes a Turso.
+- **Usos migrados a Jev tras el benchmark (28-sep): matching y categorización.** Quedan por defecto en `WON_USES`; `JEV_USES` los reemplaza. Para que el matching de Jev rinda en la ingesta se agregaron candidatos por nombre (misma marca y categoría, Jaccard ≥ 0,5), porque la regla de código de modelo casi no genera pares fuera de electrónica. La categorización reprocesa las suposiciones débiles de a 20 k por corrida.
+- **Sin keepalive con commits automáticos.** El proyecto más usado para eso está deshabilitado por GitHub por términos de servicio. En su lugar, desde el día 45 sin commits la corrida abre un issue de aviso; reactivar es una acción humana.
+- **Escrituras de Turso vigiladas por la propia ingesta** (`db_usage`), con aviso desde el 80%. Estimado ~81% en régimen y ~92% el primer mes; la propuesta para bajarlo (extender intervalos día por medio) espera decisión porque cambia qué significa "visto hoy".
+- **Scripts viejos borrados** (`scripts/sweep_all.py`, `scripts/deal_alert.py`), por pedido del dueño; quedan en el historial de git.
+- **Marcado día por medio (decisión del dueño, 28-sep).** Productos sin cambios se marcan como vistos cada 2 días; los de /ofertas, oferta del día y cola del panel, a diario. "Visto hoy" pasa a "visto hoy o ayer". Estimado de escrituras en Turso: ~48% del plan en régimen, ~59% el primer mes.
+- **split_sql con `sqlite3.complete_statement`.** El primer copy contra Turso falló por un `;` en un comentario del esquema; los comentarios se quitan antes de partir.
+- **Kemik no se alcanza desde GitHub (403 en todo).** Queda en el cron local; La Curacao y RadioShack dieron 406 parcial y se les bajó el ritmo.

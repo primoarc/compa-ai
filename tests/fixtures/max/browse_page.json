@@ -1,0 +1,450 @@
+{
+ "response": {
+  "total_num_results": 10000,
+  "groups": [
+   {
+    "group_id": "1339",
+    "display_name": "Tiendas MAX",
+    "count": 29330,
+    "data": {
+     "url": "",
+     "level": 1,
+     "category_type": "Base"
+    },
+    "parents": []
+   }
+  ],
+  "results": [
+   {
+    "matched_terms": [],
+    "labels": {},
+    "data": {
+     "id": "d0a1b2c3",
+     "url": "https://www.max.com.gt/depiladora-demo-5-en-1-d0a1b2c3",
+     "price": 200,
+     "shop_id": "9001",
+     "url_key": "depiladora-demo-5-en-1-d0a1b2c3",
+     "presale": 0,
+     "offer_id": "90001",
+     "image_url": "https://backoffice.max.com.gt/media/catalog/product/d/e/demo0000000001.png?optimize=high&fit=bounds&height=&width=&format=jpeg",
+     "shop_name": "Vendedor Demo A",
+     "meta_title": "Depiladora Demo 5 en 1",
+     "final_price": 130,
+     "marketplace": "1",
+     "facets": [
+      {
+       "name": "availability",
+       "values": [
+        "IN_STOCK"
+       ]
+      },
+      {
+       "name": "marca",
+       "values": [
+        "Marca Demo"
+       ]
+      },
+      {
+       "name": "price",
+       "values": [
+        200
+       ]
+      },
+      {
+       "name": "salable_quantity",
+       "values": [
+        50
+       ]
+      }
+     ],
+     "product_type": "simple",
+     "regular_price": 200,
+     "special_price": 130,
+     "free_products": "0",
+     "discount_amount": "0",
+     "salable_quantity": 50,
+     "discount_percent": "0",
+     "special_price_to_date": "2026-09-30 23:30:00",
+     "special_price_from_date": "2026-08-04 00:00:00",
+     "groups": [
+      {
+       "group_id": "13336",
+       "display_name": "Afeitado y depilación",
+       "path": "/1339/1346",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "1346",
+         "display_name": "Belleza y Cuidado Personal"
+        }
+       ]
+      },
+      {
+       "group_id": "2158",
+       "display_name": "Ofertas",
+       "path": "/1339",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        }
+       ]
+      },
+      {
+       "group_id": "13339",
+       "display_name": "Cuidado personal",
+       "path": "/1339/1346",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "1346",
+         "display_name": "Belleza y Cuidado Personal"
+        }
+       ]
+      },
+      {
+       "group_id": "1681",
+       "display_name": "Depiladoras",
+       "path": "/1339/1346/13336",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "1346",
+         "display_name": "Belleza y Cuidado Personal"
+        },
+        {
+         "id": "13336",
+         "display_name": "Afeitado y depilación"
+        }
+       ]
+      },
+      {
+       "group_id": "12216",
+       "display_name": "Afeitado y Depilación",
+       "path": "/1339/8784/11679/12153",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "8784",
+         "display_name": "Marketplace Backend"
+        },
+        {
+         "id": "11679",
+         "display_name": "Belleza y cuidado personal"
+        },
+        {
+         "id": "12153",
+         "display_name": "Cuidado Personal"
+        }
+       ]
+      },
+      {
+       "group_id": "2285",
+       "display_name": "Belleza y Cuidado Personal",
+       "path": "/1339/2158",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "2158",
+         "display_name": "Ofertas"
+        }
+       ]
+      },
+      {
+       "group_id": "12153",
+       "display_name": "Cuidado Personal",
+       "path": "/1339/8784/11679",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "8784",
+         "display_name": "Marketplace Backend"
+        },
+        {
+         "id": "11679",
+         "display_name": "Belleza y cuidado personal"
+        }
+       ]
+      }
+     ]
+    },
+    "value": "Depiladora Demo 5 en 1",
+    "is_slotted": false
+   },
+   {
+    "matched_terms": [],
+    "labels": {},
+    "data": {
+     "id": "e1f2a3b4",
+     "url": "https://www.max.com.gt/licor-demo-sabor-ciruela-2x360ml-e1f2a3b4",
+     "price": 60,
+     "url_key": "licor-demo-sabor-ciruela-2x360ml-e1f2a3b4",
+     "presale": 0,
+     "shop_id": "9002",
+     "offer_id": "90002",
+     "image_url": "https://backoffice.max.com.gt/media/catalog/product/d/e/demo0000000002.png",
+     "shop_name": "Vendedor Demo B",
+     "meta_title": "Licor Demo sabor ciruela 2 x 360ml",
+     "final_price": 60,
+     "marketplace": 1,
+     "facets": [
+      {
+       "name": "availability",
+       "values": [
+        "IN_STOCK"
+       ]
+      },
+      {
+       "name": "marca",
+       "values": [
+        "Acme"
+       ]
+      },
+      {
+       "name": "price",
+       "values": [
+        60
+       ]
+      },
+      {
+       "name": "salable_quantity",
+       "values": [
+        20
+       ]
+      }
+     ],
+     "product_type": "simple",
+     "regular_price": 60,
+     "special_price": 45,
+     "discount_amount": 0,
+     "discount_percent": 0,
+     "salable_quantity": 20,
+     "special_price_to_date": "2026-08-31 23:30:00",
+     "special_price_from_date": "2026-08-01 00:00:00",
+     "groups": [
+      {
+       "group_id": "28948",
+       "display_name": "Licores listos para tomar (RTD)",
+       "path": "/1339/28786/28939",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "28786",
+         "display_name": "Bebidas"
+        },
+        {
+         "id": "28939",
+         "display_name": "Licores fuertes"
+        }
+       ]
+      },
+      {
+       "group_id": "1339",
+       "display_name": "Tiendas MAX",
+       "path": "/",
+       "path_list": []
+      },
+      {
+       "group_id": "28786",
+       "display_name": "Bebidas",
+       "path": "/1339",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        }
+       ]
+      },
+      {
+       "group_id": "8784",
+       "display_name": "Marketplace Backend",
+       "path": "/1339",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        }
+       ]
+      },
+      {
+       "group_id": "28939",
+       "display_name": "Licores fuertes",
+       "path": "/1339/28786",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "28786",
+         "display_name": "Bebidas"
+        }
+       ]
+      }
+     ]
+    },
+    "value": "Licor Demo sabor ciruela 2 x 360ml",
+    "is_slotted": false
+   },
+   {
+    "matched_terms": [],
+    "labels": {},
+    "data": {
+     "id": "MM00DEMO01",
+     "EAN": 1234567000015,
+     "url": "https://www.max.com.gt/scooter-electrico-demo-s1-negro-acme-mm00demo01",
+     "price": 4000,
+     "url_key": "scooter-electrico-demo-s1-negro-acme-mm00demo01",
+     "presale": 0,
+     "shop_id": "1",
+     "offer_id": null,
+     "image_url": "https://backoffice.max.com.gt/media/catalog/product/M/M/MM00DEMO01_1_1.jpg",
+     "shop_name": "max_com_gt",
+     "meta_title": "Scooter Eléctrico Demo S1 -Negro-",
+     "final_price": 3200,
+     "marketplace": 0,
+     "facets": [
+      {
+       "name": "availability",
+       "values": [
+        "IN_STOCK"
+       ]
+      },
+      {
+       "name": "marca",
+       "values": [
+        "Acme"
+       ]
+      },
+      {
+       "name": "price",
+       "values": [
+        4000
+       ]
+      },
+      {
+       "name": "salable_quantity",
+       "values": [
+        100
+       ]
+      }
+     ],
+     "product_type": "simple",
+     "regular_price": 4000,
+     "special_price": 3200,
+     "discount_amount": 800,
+     "discount_percent": 20,
+     "salable_quantity": 100,
+     "special_price_to_date": "2026-10-06 23:59:59",
+     "special_price_from_date": "2026-09-14 00:00:00",
+     "groups": [
+      {
+       "group_id": "2158",
+       "display_name": "Ofertas",
+       "path": "/1339",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        }
+       ]
+      },
+      {
+       "group_id": "1708",
+       "display_name": "Scooters para adultos",
+       "path": "/1339/1347/1387",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "1347",
+         "display_name": "Movilidad"
+        },
+        {
+         "id": "1387",
+         "display_name": "Scooters"
+        }
+       ]
+      },
+      {
+       "group_id": "1387",
+       "display_name": "Scooters",
+       "path": "/1339/1347",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "1347",
+         "display_name": "Movilidad"
+        }
+       ]
+      },
+      {
+       "group_id": "1347",
+       "display_name": "Movilidad",
+       "path": "/1339",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        }
+       ]
+      },
+      {
+       "group_id": "1339",
+       "display_name": "Tiendas MAX",
+       "path": "/",
+       "path_list": []
+      },
+      {
+       "group_id": "3102",
+       "display_name": "Movilidad",
+       "path": "/1339/2158",
+       "path_list": [
+        {
+         "id": "1339",
+         "display_name": "Tiendas MAX"
+        },
+        {
+         "id": "2158",
+         "display_name": "Ofertas"
+        }
+       ]
+      }
+     ]
+    },
+    "value": "Scooter Eléctrico Demo S1 -Negro-",
+    "is_slotted": false
+   }
+  ]
+ },
+ "request": {
+  "page": 1,
+  "num_results_per_page": 100
+ }
+}

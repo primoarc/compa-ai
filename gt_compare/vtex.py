@@ -59,6 +59,8 @@ class Product:
     # comparar con otra tienda ni de tener historial. Una laptop a Q529 con
     # ListPrice Q3,499 la delata sola.
     list_price: float | None = None
+    # Precio solo en efectivo (Intelaf). `price` es el que vale con tarjeta.
+    cash_price: float | None = None
 
 
 @dataclass
@@ -239,7 +241,7 @@ async def search_all(
     plan=None,
 ) -> list[StoreResult]:
     """Consulta todas las tiendas VTEX en paralelo."""
-    from . import scraper  # import lazy para evitar el ciclo vtex<->scraper
+    from . import catalog_search, scraper  # lazy: evita el ciclo vtex<->scraper
 
     from .stores import ensure_config
     has_max_headers = bool(ensure_config().get("max_headers"))
@@ -255,8 +257,9 @@ async def search_all(
                     tasks.append(_search_with_aliases(scraper.fetch_max, client, s, query, plan=plan, **kw))
                 else:
                     tasks.append(_search_with_aliases(search_store, client, s, query, plan=plan, **kw))
-            elif s.kind == "magento":
-                tasks.append(_search_with_aliases(scraper.fetch_magento, client, s, query, plan=plan, **kw))
+            elif s.key in catalog_search.CATALOG_STORES:
+                # Su buscador está prohibido en robots.txt: se busca en el catálogo diario.
+                tasks.append(asyncio.to_thread(catalog_search.search, s, query, plan=plan))
             elif s.kind == "kemik":
                 tasks.append(_search_with_aliases(scraper.fetch_kemik, client, s, query, plan=plan, **kw))
             elif s.kind == "pricesmart":

@@ -1,0 +1,93 @@
+{
+ "state": {
+  "Code": 200,
+  "Message": "Exitoso"
+ },
+ "Response": {
+  "Titulo": "mouse",
+  "CantidadProductos": 332.0,
+  "PrecioMenor": 60.0,
+  "PrecioMayor": 80.0,
+  "Marcas": [
+   {
+    "Marca": "Marca Demo",
+    "Cantidad": 1,
+    "Logo": "/img/marca/demo.png"
+   },
+   {
+    "Marca": "Marca Demo",
+    "Cantidad": 6,
+    "Logo": "/img/marca/demo.png"
+   }
+  ],
+  "Categorias": [
+   {
+    "Codigo": "MOUSE-OPT-ALA",
+    "Descripcion": "Mouse Demo"
+   }
+  ],
+  "Productos": [
+   {
+    "Codigo": "DEMO-MOU-400",
+    "Descripcion": "Mouse Prueba óptico alámbrico rosado",
+    "PrecioNormal": 70.0,
+    "PrecioAnterior": 0.0,
+    "PrecioDescuento": 60.0,
+    "DescripcionDescuento": "Promo PRUEBA",
+    "FechaCaducaDescuento": "30/09/2026",
+    "Imagen": "https://example.com/img/DEMO-MOU-400.jpg",
+    "Existencia": [],
+    "EnBodega": false,
+    "EnTransito": false,
+    "OcultarBodegaTransito": false,
+    "AplicaPromoIndividual": true,
+    "Marca": "PRUEBA",
+    "EsFavorito": false,
+    "AreaFuncional": "MOUSE-OPT-ALA",
+    "AreaFuncionalDescripcion": null,
+    "AreaFuncional2Descripcion": null,
+    "LinkMarca": null,
+    "FechaCreacion": "2017-02-16T10:13:50",
+    "EsDigital": false,
+    "EsBajoDemanda": false,
+    "InventarValor": null
+   },
+   {
+    "Codigo": "DEMO-MOU-500",
+    "Descripcion": "Mouse Acme óptico alámbrico negro",
+    "PrecioNormal": 80.0,
+    "PrecioAnterior": 0.0,
+    "PrecioDescuento": 70.0,
+    "DescripcionDescuento": "Promo ACME",
+    "FechaCaducaDescuento": "30/09/2026",
+    "Imagen": "https://example.com/img/DEMO-MOU-500.jpg",
+    "Existencia": [
+     {
+      "CodigoSucursal": "1",
+      "NombreSucursal": "SUCURSAL 1",
+      "Existencia": 3.0
+     },
+     {
+      "CodigoSucursal": "3",
+      "NombreSucursal": "SUCURSAL 3",
+      "Existencia": 2.0
+     }
+    ],
+    "EnBodega": false,
+    "EnTransito": true,
+    "OcultarBodegaTransito": false,
+    "AplicaPromoIndividual": true,
+    "Marca": "ACME",
+    "EsFavorito": false,
+    "AreaFuncional": "MOUSE-OPT-ALA",
+    "AreaFuncionalDescripcion": null,
+    "AreaFuncional2Descripcion": null,
+    "LinkMarca": null,
+    "FechaCreacion": "2022-03-20T22:09:51",
+    "EsDigital": false,
+    "EsBajoDemanda": false,
+    "InventarValor": null
+   }
+  ]
+ }
+}

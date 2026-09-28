@@ -22,10 +22,12 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-from . import matching, planner, relevance, vtex
+from . import matching, pages, planner, relevance, vtex
+from .images import thumb
 from .stores import load_stores
 
 app = FastAPI(title="Compa AI", docs_url=None, redoc_url=None)
+app.include_router(pages.router)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -229,12 +231,14 @@ def _prod_dict(p) -> dict:
         "price": p.price,
         "available": p.available > 0,
         "url": p.url,
-        "image": p.image,
+        "image": thumb(p.image, 112),
         # Diagonal declarada en el título. El front la muestra como chip para
         # que se vea de una que dos filas no son el mismo aparato.
         "size": matching.screen_size(p.name),
         # Precio de lista de la tienda (tachado), cuando lo declara.
         "list_price": getattr(p, "list_price", None),
+        # Precio solo en efectivo (Intelaf); `price` es el que vale con tarjeta.
+        "cash_price": getattr(p, "cash_price", None),
     }
 
 
@@ -257,7 +261,7 @@ def _best_per_store(query: str, results: list[vtex.StoreResult], plan=None) -> l
         ]
         priced = [
             p for p in relevant_all
-            if getattr(p, "price", None) and p.price > 0
+            if p.price is not None and p.price > 0
         ]
         priced.sort(key=_sort_key)
         if priced:
@@ -492,7 +496,10 @@ Compa AI compara precios de productos en tiendas de Guatemala y publica paginas 
 
 @app.get("/", response_class=HTMLResponse)
 async def index() -> HTMLResponse:
-    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    if pages.get_db() is not None:
+        page = page.replace("<!--ofertas-->", '<a class="deals-link" href="/ofertas">Ver las ofertas de hoy</a>')
+    return HTMLResponse(page, headers={"Cache-Control": PAGE_CACHE_CONTROL})
 
 
 # Assets estáticos servidos a mano en vez de montar StaticFiles: son solo dos
@@ -604,13 +611,10 @@ def _seo_page_html(page: SeoPage, rows: list[dict], cheapest: str | None, plan_s
 <meta name="twitter:image" content="{SITE_URL}/og-image.png">
 <meta name="theme-color" content="#ffffff">
 <script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-:root{{--paper:#fdfdfc;--white:#fff;--ink:#0b0b0c;--ink-2:#3a3a3e;--muted:#76767c;--faint:#a1a1a8;
---rule:rgba(11,11,12,.09);--rule-2:rgba(11,11,12,.055);--wash:#f6f6f4;--emerald:#0a6b47;--emerald-soft:#e9f4ef;--amber:#8a5a00;
---serif:"Instrument Serif","Iowan Old Style",Georgia,serif;--sans:"Instrument Sans","Helvetica Neue",Helvetica,Arial,sans-serif}}
+:root{{--paper:#fff;--white:#fff;--ink:#0b0b0c;--ink-2:#3a3a3e;--muted:#76767c;--faint:#a1a1a8;
+--rule:rgba(11,11,12,.09);--rule-2:rgba(11,11,12,.055);--wash:#f4f4f5;--emerald:#0a6b47;--emerald-soft:#e9f4ef;--amber:#8a5a00;
+--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
 -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}}
@@ -618,12 +622,12 @@ a{{color:inherit}}::selection{{background:var(--emerald);color:#fff}}
 .wrap{{max-width:880px;margin:0 auto;padding:22px 24px 72px}}
 .top{{display:flex;justify-content:space-between;gap:16px;align-items:center;
 padding-bottom:20px;margin-bottom:44px;border-bottom:1px solid var(--rule)}}
-.brand{{font-family:var(--serif);font-size:23px;letter-spacing:-.01em;text-decoration:none}}
-.brand span{{font-style:italic;color:var(--emerald)}}
+.brand{{font-weight:700;font-size:19px;letter-spacing:-.01em;text-decoration:none}}
+.brand span{{color:var(--emerald)}}
 .search{{font-size:13.5px;font-weight:500;color:var(--ink);text-decoration:none;
-border:1px solid var(--rule);border-radius:999px;padding:8px 16px;transition:background .18s,border-color .18s}}
+border:1px solid var(--rule);border-radius:8px;padding:8px 16px;transition:background .18s,border-color .18s}}
 .search:hover{{background:var(--wash);border-color:rgba(11,11,12,.2)}}
-h1{{font-family:var(--serif);font-weight:400;font-size:clamp(34px,6vw,58px);line-height:1.03;
+h1{{font-weight:700;font-size:clamp(28px,5.5vw,48px);line-height:1.08;
 margin:0 0 16px;letter-spacing:-.02em;text-wrap:balance}}
 .lead{{color:var(--muted);font-size:17px;max-width:620px;margin:0}}
 .summary{{margin:28px 0 0;padding:18px 20px;border:1px solid var(--rule-2);background:var(--white);border-radius:14px}}
@@ -651,7 +655,7 @@ img{{width:56px;height:56px;object-fit:contain;background:var(--white);border:1p
 .section h2{{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}}
 .links{{display:flex;flex-wrap:wrap;gap:7px}}
 .links a{{text-decoration:none;font-size:13px;color:var(--ink-2);border:1px solid var(--rule-2);
-border-radius:999px;padding:7px 13px;transition:background .18s,border-color .18s}}
+border-radius:8px;padding:7px 13px;transition:background .18s,border-color .18s}}
 .links a:hover{{background:var(--wash);border-color:var(--rule)}}
 ul{{color:var(--muted);font-size:13.5px;margin:0;padding-left:18px}}
 ul li{{padding:3px 0}}ul strong{{color:var(--ink-2);font-weight:600}}
@@ -696,7 +700,7 @@ def _seo_result_card(row: dict, idx: int, is_best: bool) -> str:
     img = f'<img src="{_e(image)}" alt="{_e(row.get("name"))}" loading="lazy">' if image else '<div></div>'
     badge = '<span class="badge">MÁS BARATO</span>' if is_best else ""
     price_note = " · puede variar por club" if row.get("store_key") == "pricesmart" else ""
-    return f"""<a class="card {'best' if is_best else ''}" href="{_e(row.get("url"))}" rel="nofollow noopener" target="_blank">
+    return f"""<a class="card {'best' if is_best else ''}" href="{_e(pages.outbound(row.get("url") or ""))}" rel="nofollow noopener" target="_blank">
   <div class="rank">{idx + 1}</div>
   {img}
   <div>
@@ -719,31 +723,28 @@ def _not_found_html() -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>Página no encontrada | Compa AI</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-:root{{--paper:#fdfdfc;--ink:#0b0b0c;--ink-2:#3a3a3e;--muted:#76767c;--faint:#a1a1a8;
---rule:rgba(11,11,12,.09);--rule-2:rgba(11,11,12,.055);--wash:#f6f6f4;--emerald:#0a6b47;
---serif:"Instrument Serif",Georgia,serif;--sans:"Instrument Sans","Helvetica Neue",Arial,sans-serif}}
+:root{{--paper:#fff;--ink:#0b0b0c;--ink-2:#3a3a3e;--muted:#76767c;--faint:#a1a1a8;
+--rule:rgba(11,11,12,.09);--rule-2:rgba(11,11,12,.055);--wash:#f4f4f5;--emerald:#0a6b47;
+--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
 -webkit-font-smoothing:antialiased}}
 a{{color:inherit}}
 .wrap{{max-width:640px;margin:0 auto;padding:96px 24px 72px;text-align:center}}
-.brand{{font-family:var(--serif);font-size:23px;text-decoration:none;display:inline-block;margin-bottom:56px}}
-.brand span{{font-style:italic;color:var(--emerald)}}
-h1{{font-family:var(--serif);font-weight:400;font-size:clamp(34px,7vw,52px);line-height:1.05;
+.brand{{font-weight:700;font-size:19px;text-decoration:none;display:inline-block;margin-bottom:56px}}
+.brand span{{color:var(--emerald)}}
+h1{{font-weight:700;font-size:clamp(28px,6vw,44px);line-height:1.08;
 letter-spacing:-.02em;margin:0 0 12px}}
 p{{color:var(--muted);font-size:16px;margin:0 auto;max-width:400px}}
 .home{{display:inline-block;margin-top:28px;background:var(--ink);color:#fff;text-decoration:none;
-font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:999px}}
+font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:8px}}
 .section{{margin-top:64px;padding-top:26px;border-top:1px solid var(--rule)}}
 .section h2{{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
 color:var(--faint);margin:0 0 14px}}
 .links{{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}}
 .links a{{text-decoration:none;font-size:13px;color:var(--ink-2);border:1px solid var(--rule-2);
-border-radius:999px;padding:7px 13px;transition:background .18s,border-color .18s}}
+border-radius:8px;padding:7px 13px;transition:background .18s,border-color .18s}}
 .links a:hover{{background:var(--wash);border-color:var(--rule)}}
 </style>
 </head>
