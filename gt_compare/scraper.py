@@ -50,16 +50,12 @@ async def search_store(
     )
 
 
-# --- Tiendas Magento de Grupo Unicomer (scraping HTML) --------------------
+# --- Magento (La Curacao, RadioShack, Steren, EPA) --------------------------
 #
-# La Curacao (lacuracaonline.com) y RadioShack (radioshackla.com) comparten la
-# misma plataforma Magento y operan la tienda GT en /guatemala/. GraphQL está
-# deshabilitado (403 "GraphQL disabled"), así que parseamos el HTML del listado
-# de búsqueda: GET {search_path}{query}  (p.ej. /guatemala/search/televisor).
-# Cada producto es un <div class="product-item-info"> con un product-item-link
-# (nombre + URL) y un data-price-amount type="finalPrice" en quetzales.
-
-_RE_ITEM = re.compile(r'product-item-info', re.I)
+# Expresiones del listado de productos que usa el lector de catálogo
+# (gt_compare/ingest/magento.py). La búsqueda en vivo de estas tiendas ya no
+# pasa por aquí: su robots.txt prohíbe /search/ y /catalogsearch/, así que se
+# responde desde el catálogo diario (gt_compare/catalog_search.py).
 _RE_LINK = re.compile(
     r'<a\b[^>]*class="[^"]*product-item-link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
     re.I | re.S,
@@ -80,47 +76,6 @@ _RE_OLD_PRICE = re.compile(
     r'|data-price-amount="([\d.]+)"[^>]*data-price-type="oldPrice"',
     re.I,
 )
-
-
-def _parse_magento(store: Store, html: str) -> list[Product]:
-    products: list[Product] = []
-    # Cada chunk arranca en un "product-item-info" y termina donde empieza el
-    # siguiente; así el precio que capturamos pertenece a ese producto.
-    chunks = _RE_ITEM.split(html)[1:]
-    for chunk in chunks:
-        link = _RE_LINK.search(chunk)
-        if not link:
-            continue
-        url = link.group(1)
-        name = html_lib.unescape(_RE_TAG.sub(" ", link.group(2))).strip()
-        name = re.sub(r"\s+", " ", name)
-        if not name:
-            continue
-        price_m = _RE_PRICE.search(chunk)
-        price = float(price_m.group(1)) if price_m else None
-        img_m = _RE_IMG.search(chunk)
-        old_m = _RE_OLD_PRICE.search(chunk)
-        list_price = None
-        if old_m:
-            raw = old_m.group(1) or old_m.group(2)
-            try:
-                list_price = round(float(raw), 2)
-            except (TypeError, ValueError):
-                list_price = None
-        agotado = "agotado" in chunk.lower() or "sin existencia" in chunk.lower()
-        products.append(
-            Product(
-                store_key=store.key,
-                store_name=store.name,
-                name=name,
-                price=round(price, 2) if price is not None else None,
-                available=0 if agotado else 1,
-                url=url,
-                image=img_m.group(1) if img_m else None,
-                list_price=list_price,
-            )
-        )
-    return products
 
 
 # --- Kemik (Next.js, SSR) -------------------------------------------------
@@ -346,69 +301,39 @@ async def fetch_pricesmart(
         return StoreResult(store, [], ok=False, error=str(exc))
 
 
-async def fetch_magento(
-    client: httpx.AsyncClient,
-    store: Store,
-    query: str,
-    *,
-    timeout: int,
-    ttl_seconds: int,
-    use_cache: bool = True,
-) -> StoreResult:
-    path = store.search_path or "/guatemala/search/"
-
-    ck = cache.make_key(store.key, query)
-    if use_cache:
-        cached = cache.get(ck, ttl_seconds)
-        if cached is not None:
-            return StoreResult(store, _parse_magento(store, cached), ok=True)
-
-    async def _get(q: str) -> str:
-        url = f"https://{store.domain}{path}{quote(q.strip())}"
-        resp = await asyncio.wait_for(
-            client.get(url, headers=HEADERS), timeout=timeout
-        )
-        resp.raise_for_status()
-        return resp.text
-
-    try:
-        html = await _get(query)
-        products = _parse_magento(store, html)
-        # Fallback: si 0 resultados y el query tiene varias palabras, reintentar
-        # con la primera (mismo criterio que vtex.py).
-        if not products and " " in query.strip():
-            html = await _get(query.strip().split()[0])
-            products = _parse_magento(store, html)
-        if use_cache:
-            cache.set(ck, html)
-        return StoreResult(store, products, ok=True)
-    except asyncio.TimeoutError:
-        return StoreResult(store, [], ok=False, error="timeout")
-    except httpx.HTTPStatusError as exc:
-        logger.error("%s HTTP %s", store.key, exc.response.status_code)
-        return StoreResult(store, [], ok=False, error=f"HTTP {exc.response.status_code}")
-    except Exception as exc:  # noqa: BLE001
-        logger.error("%s error: %s", store.key, exc)
-        return StoreResult(store, [], ok=False, error=str(exc))
-
-
 # --- Intelaf: API pública usada por su frontend Next.js -------------------
 
 _INTELAF_ENDPOINT = "https://api.intelaf.com:2053/app/api/producto/busqueda"
 
 
+def _intelaf_cash_only(item: dict) -> bool:
+    """"Beneficio Efectivo": el descuento solo vale pagando en efectivo."""
+    desc = (item.get("DescripcionDescuento") or "").lower()
+    return "efectivo" in desc or "contado" in desc
+
+
 def _intelaf_price(item: dict) -> float | None:
+    """Precio con cualquier medio de pago, el comparable con otras tiendas."""
     discount = _as_price(item.get("PrecioDescuento"))
-    if discount and discount > 0:
+    if discount and discount > 0 and not _intelaf_cash_only(item):
         return discount
-    return _as_price(item.get("PrecioNormal"))
+    return _as_price(item.get("PrecioNormal")) or discount
+
+
+def _intelaf_cash_price(item: dict) -> float | None:
+    """Precio en efectivo cuando es más bajo que el de tarjeta."""
+    discount = _as_price(item.get("PrecioDescuento"))
+    normal = _as_price(item.get("PrecioNormal"))
+    if _intelaf_cash_only(item) and discount and normal and 0 < discount < normal:
+        return discount
+    return None
 
 
 def _intelaf_list_price(item: dict) -> float | None:
-    """PrecioNormal es el precio de lista cuando hay un descuento vigente."""
+    """PrecioNormal es el precio de lista cuando hay una promoción para todos los medios de pago."""
     discount = _as_price(item.get("PrecioDescuento"))
     normal = _as_price(item.get("PrecioNormal"))
-    if discount and normal and 0 < discount < normal:
+    if discount and normal and 0 < discount < normal and not _intelaf_cash_only(item):
         return normal
     return None
 
@@ -435,6 +360,7 @@ def _parse_intelaf(store: Store, payload: dict) -> list[Product]:
                 url=f"https://{store.domain}/producto/{quote(code, safe='')}",
                 image=item.get("Imagen"),
                 list_price=_intelaf_list_price(item),
+                cash_price=_intelaf_cash_price(item),
             )
         )
     return products
@@ -616,31 +542,31 @@ async def fetch_woocommerce(
     ttl_seconds: int,
     use_cache: bool = True,
 ) -> StoreResult:
-    ck = cache.make_key(store.key, query)
-    if use_cache:
-        cached = cache.get(ck, ttl_seconds)
-        if cached is not None:
-            return StoreResult(store, _parse_woocommerce(store, cached), ok=True)
+    """Búsqueda por la Store API de WooCommerce. `/?s=` está prohibido en su robots.txt."""
+    from .ingest.sears import record_from_api  # lazy: ingest.sears importa este módulo
 
-    url = f"https://{store.domain}/?s={quote(query.strip())}&post_type=product"
-    headers = {**HEADERS, "Accept": "text/html,application/xhtml+xml"}
+    ck = cache.make_key(store.key, "store-api:" + query)
+    payload = cache.get(ck, ttl_seconds) if use_cache else None
     try:
-        resp = await asyncio.wait_for(
-            client.get(url, headers=headers), timeout=timeout
-        )
-        resp.raise_for_status()
-        html = resp.text
-        products = _parse_woocommerce(store, html)
-        if not products and " " in query.strip():
-            url = f"https://{store.domain}/?s={quote(query.strip().split()[0])}&post_type=product"
+        if payload is None:
+            url = f"https://{store.domain}/wp-json/wc/store/products"
             resp = await asyncio.wait_for(
-                client.get(url, headers=headers), timeout=timeout
+                client.get(url, params={"search": query.strip(), "per_page": 24}, headers=HEADERS),
+                timeout=timeout,
             )
             resp.raise_for_status()
-            html = resp.text
-            products = _parse_woocommerce(store, html)
-        if use_cache:
-            cache.set(ck, html)
+            payload = resp.json()
+            if use_cache:
+                cache.set(ck, payload)
+        products = []
+        for raw in payload or []:
+            rec = record_from_api(store, raw)
+            if rec is not None:
+                products.append(Product(
+                    store_key=store.key, store_name=store.name, name=rec.name, price=rec.price,
+                    available=1 if rec.available is None or rec.available > 0 else 0,
+                    url=rec.url, image=rec.image, list_price=rec.list_price,
+                ))
         return StoreResult(store, products, ok=True)
     except (asyncio.TimeoutError, httpx.TimeoutException):
         return StoreResult(store, [], ok=False, error="timeout")
@@ -648,8 +574,8 @@ async def fetch_woocommerce(
         logger.error("%s HTTP %s", store.key, exc.response.status_code)
         return StoreResult(store, [], ok=False, error=f"HTTP {exc.response.status_code}")
     except Exception as exc:  # noqa: BLE001
-        logger.error("%s error: %s", store.key, exc)
-        return StoreResult(store, [], ok=False, error=str(exc))
+        logger.exception("%s falló", store.key)
+        return StoreResult(store, [], ok=False, error=str(exc)[:120])
 
 
 # --- Max Distelsa: Constructor.io -----------------------------------------

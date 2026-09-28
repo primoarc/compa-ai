@@ -1,0 +1,105 @@
+name: ingesta-diaria
+
+# Recorre los catálogos de las 13 tiendas y escribe el historial en Turso.
+# Sin los secrets GT_COMPARE_DB_URL y TURSO_AUTH_TOKEN no hace nada.
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 03:00 en Guatemala (UTC-6)
+  workflow_dispatch:
+    inputs:
+      stores:
+        description: "Tiendas separadas por espacio (vacío = todas)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write   # solo para el aviso de inactividad
+
+concurrency:
+  group: ingesta
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GT_COMPARE_DB_URL: ${{ secrets.GT_COMPARE_DB_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      # Jev para los usos que ganaron el benchmark (gt_compare/decide/core.py:WON_USES).
+      # Sin este secret, todo va por reglas.
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+    steps:
+      # GitHub desactiva los schedule de repos públicos tras 60 días sin actividad.
+      # No se fabrican commits (eso le costó la cuenta a proyectos de "keepalive"):
+      # desde el día 45 se abre un issue, que llega por correo, para que una
+      # persona haga un commit o reactive el workflow.
+      - name: Aviso de inactividad del repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          last=$(gh api "repos/$REPO/commits?per_page=1" --jq '.[0].commit.committer.date')
+          days=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 86400 ))
+          echo "Días desde el último commit: $days"
+          if [ "$days" -ge 45 ]; then
+            off=$(date -u -d "$last + 60 days" +%Y-%m-%d)
+            title="La ingesta diaria se desactiva el $off"
+            open=$(gh issue list -R "$REPO" --state open --search "La ingesta diaria se desactiva in:title" --json number --jq 'length')
+            if [ "$open" = "0" ]; then
+              gh issue create -R "$REPO" --title "$title" --body "GitHub desactiva los workflows programados de un repo público tras 60 días sin actividad. El último commit fue hace $days días. Para evitarlo, hacer cualquier commit real antes del $off. Si ya se desactivó: \`gh workflow enable ingest.yml -R $REPO\`. Ver docs/ingesta-programada.md."
+            fi
+            echo "AVISO: la ingesta programada se desactiva el $off si no hay actividad" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: ¿Hay base configurada?
+        id: guard
+        run: |
+          if [ -z "$GT_COMPARE_DB_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
+            echo "Faltan los secrets de Turso: no se corre." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      # GitHub enmascara el secret tal cual (libsql://...), pero el cliente usa
+      # https://host: se enmascara también el host solo.
+      - name: Enmascarar la base en los logs
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          host="${GT_COMPARE_DB_URL#*://}"; host="${host%%/*}"
+          echo "::add-mask::$host"
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ok == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          python-version: "3.9"
+      - if: steps.guard.outputs.ok == 'true'
+        run: pip install -e .
+      - name: Ingesta y detector
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          STORES: ${{ github.event.inputs.stores }}
+        run: |
+          args=()
+          for s in $STORES; do
+            if [[ "$s" =~ ^[a-z]+$ ]]; then args+=(--store "$s"); fi
+          done
+          set -o pipefail
+          python -m gt_compare.ingest run "${args[@]}" 2>&1 | tee ingest.log
+      - name: Resumen
+        if: always() && steps.guard.outputs.ok == 'true'
+        run: |
+          {
+            echo "### Corrida"
+            grep -E "^AVISO" ingest.log | sed 's/^/> **/; s/$/**/' || true
+            echo '```'
+            grep -E "^[a-z]+ +(ok|partial|failed|skipped)|^\{|^Escrituras del mes" ingest.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.guard.outputs.ok == 'true'
+        with:
+          name: ingest-log-${{ github.run_id }}
+          path: ingest.log
+          retention-days: 30

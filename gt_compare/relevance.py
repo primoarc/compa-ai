@@ -384,9 +384,14 @@ def _is_number(tok: str) -> bool:
     return tok.isdigit()
 
 
+# Intención de precio ("tele 55 barata"): no describe el producto y los
+# resultados ya salen ordenados por precio, así que no se exige en el nombre.
+_PRICE_INTENT = {"barato", "barata", "baratos", "baratas", "economico", "economica",
+                 "economicos", "economicas", "mas", "oferta", "ofertas", "precio", "buen"}
+
 # Palabras de relleno que no aportan a la relevancia (no obligan a calzar).
 _STOPWORDS = {"de", "para", "con", "el", "la", "los", "las", "y", "o", "un", "una",
-              "pulgadas", "plg", "inch", "pulg"}
+              "pulgadas", "plg", "inch", "pulg"} | _PRICE_INTENT
 
 
 def _alias_tokens(group: tuple[str, ...]) -> list[tuple[str, ...]]:
@@ -647,7 +652,9 @@ def is_relevant(query: str, name: str, plan=None) -> bool:
     """¿El producto `name` coincide con la intención de `query`?"""
     qvariants = query_token_variants(query)
     if not qvariants or not qvariants[0]:
-        return True
+        # Una consulta de solo intención de precio ("ofertas", "barato") no dice
+        # qué producto se busca: no se da por buena cualquier cosa.
+        return not any(t in _PRICE_INTENT for t in tokens(query))
     name_norm = normalize(name)
     name_toks = set(tokens(name))
 

@@ -1,0 +1,107 @@
+{
+ "page": 1,
+ "query": "",
+ "query_name": "match_all",
+ "results_per_page": 100,
+ "total": 1000,
+ "total_found": 24876,
+ "results": [
+  {
+   "availability": "In stock",
+   "best_price": 1080.0,
+   "brand": "Acme",
+   "calculated_discount": 10.0,
+   "categories": [
+    "Herramientas manuales > organización de herramientas > bolsas para herramientas arnes"
+   ],
+   "color": null,
+   "df_grouping_id": "product@100101",
+   "df_multiprice": {},
+   "dfid": "0123456789abcdef0123456789abcdef@product@00000000000000000000000000000001",
+   "discount": "10",
+   "etag": "*Exclusivo online",
+   "id": "100101",
+   "image_link": "https://www.ferreteriavidri.com/images/items/large/100101.jpg?v=a20260101",
+   "link": "https://www.novex.com.gt/producto/100101/Mochila-demo-para-herramientas.html",
+   "mpn": "100101",
+   "price": 1200.0,
+   "sale_price": 1080.0,
+   "stock": "Queda(n) 5 en stock",
+   "title": "Mochila demo para herramientas",
+   "type": "product"
+  },
+  {
+   "availability": "In stock",
+   "best_price": 80.0,
+   "brand": "Marca Demo",
+   "categories": [
+    "Materiales de construcción > cementos > cemento gris y blanco"
+   ],
+   "color": null,
+   "df_grouping_id": "product@100202",
+   "df_multiprice": {},
+   "dfid": "0123456789abcdef0123456789abcdef@product@00000000000000000000000000000002",
+   "etag": null,
+   "id": "100202",
+   "image_link": "https://www.ferreteriavidri.com/images/items/large/100202.jpg?v=a20260101",
+   "link": "https://www.novex.com.gt/producto/100202/Saco-de-cemento-demo-425-kg.html",
+   "mpn": "100202",
+   "price": 80.0,
+   "sale_price": 80.0,
+   "stock": null,
+   "title": "Saco de cemento demo 42.5 kg",
+   "type": "product"
+  },
+  {
+   "availability": "Out of stock",
+   "best_price": 22500.0,
+   "brand": "Acme",
+   "calculated_discount": 10.0,
+   "categories": [
+    "Herramientas eléctricas > herramientas inalámbricas > otras herramientas inalámbricas"
+   ],
+   "color": [
+    null,
+    "Rojo"
+   ],
+   "df_grouping_id": "product@100303",
+   "df_multiprice": {},
+   "dfid": "0123456789abcdef0123456789abcdef@product@00000000000000000000000000000003",
+   "discount": "10",
+   "etag": "*Exclusivo online",
+   "id": "100303",
+   "image_link": "https://www.ferreteriavidri.com/images/items/large/100303.jpg?v=a20260101",
+   "link": "https://www.novex.com.gt/producto/100303/Generador-demo-de-energ%C3%ADa-1800-w.html",
+   "mpn": "100303",
+   "price": 25000.0,
+   "sale_price": 22500.0,
+   "stock": "Queda(n) 3 en stock",
+   "title": "Generador demo de energía 1800 w",
+   "type": "product"
+  },
+  {
+   "availability": "In stock",
+   "best_price": 1080.0,
+   "brand": "Acme",
+   "calculated_discount": 10.0,
+   "categories": [
+    "Herramientas manuales > organización de herramientas > bolsas para herramientas arnes"
+   ],
+   "color": null,
+   "df_grouping_id": "product@100101",
+   "df_multiprice": {},
+   "dfid": "0123456789abcdef0123456789abcdef@product@00000000000000000000000000000001",
+   "discount": "10",
+   "etag": "*Exclusivo online",
+   "id": "100101",
+   "image_link": "https://www.ferreteriavidri.com/images/items/large/100101.jpg?v=a20260101",
+   "link": "https://www.novex.com.gt/producto/100101/Mochila-demo-para-herramientas.html",
+   "mpn": "100101",
+   "price": 1200.0,
+   "sale_price": 1080.0,
+   "stock": "Queda(n) 5 en stock",
+   "title": "Mochila demo para herramientas",
+   "type": "product"
+  }
+ ]
+}

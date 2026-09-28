@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - run: pip install -e . pyright
+      - name: Suites
+        run: |
+          set -e
+          for t in tests/test_*.py; do echo "== $t"; python "$t"; done
+      - name: Tipos
+        run: pyright --pythonversion 3.9 gt_compare scripts/benchmark_jev.py
+
+  # ¿Las tiendas responden desde los servidores de GitHub? Es la condición para
+  # mover la ingesta diaria a Actions. No falla el PR: solo informa.
+  reachability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - run: pip install -e .
+      - name: 30 productos por tienda, en memoria
+        run: python -m gt_compare.ingest run --no-post --limit 30 --db ":memory:" | tee reachability.txt
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Alcance desde GitHub Actions"
+            echo '```'
+            cat reachability.txt 2>/dev/null || echo "sin salida"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

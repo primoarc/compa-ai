@@ -1,0 +1,137 @@
+{
+ "state": {
+  "Code": 200,
+  "Message": "Exitoso"
+ },
+ "Response": {
+  "Titulo": "laptop",
+  "CantidadProductos": 22.0,
+  "PrecioMenor": 90.0,
+  "PrecioMayor": 9000.0,
+  "Marcas": [
+   {
+    "Marca": "Marca Demo",
+    "Cantidad": 1,
+    "Logo": "/img/marca/demo.png"
+   },
+   {
+    "Marca": "DEMOTECH",
+    "Cantidad": 4,
+    "Logo": "/img/marca/demo.png"
+   }
+  ],
+  "Categorias": [
+   {
+    "Codigo": "NOT-DOCK",
+    "Descripcion": "Docks Demo"
+   },
+   {
+    "Codigo": "NOT-17",
+    "Descripcion": "Notebooks Demo"
+   },
+   {
+    "Codigo": "CEL-ACC",
+    "Descripcion": "Accesorios Demo"
+   }
+  ],
+  "Productos": [
+   {
+    "Codigo": "DEMO-KIT-100",
+    "Descripcion": "Kit de limpieza Demo 20 en 1 para pantallas",
+    "PrecioNormal": 100.0,
+    "PrecioAnterior": 0.0,
+    "PrecioDescuento": 90.0,
+    "DescripcionDescuento": "Promo ACME",
+    "FechaCaducaDescuento": "30/09/2026",
+    "Imagen": "https://example.com/img/DEMO-KIT-100.jpg",
+    "Existencia": [
+     {
+      "CodigoSucursal": "1",
+      "NombreSucursal": "SUCURSAL 1",
+      "Existencia": 2.0
+     },
+     {
+      "CodigoSucursal": "3",
+      "NombreSucursal": "SUCURSAL 3",
+      "Existencia": 4.0
+     }
+    ],
+    "EnBodega": false,
+    "EnTransito": true,
+    "OcultarBodegaTransito": false,
+    "AplicaPromoIndividual": true,
+    "Marca": "ACME",
+    "EsFavorito": false,
+    "AreaFuncional": "CEL-ACC",
+    "AreaFuncionalDescripcion": null,
+    "AreaFuncional2Descripcion": null,
+    "LinkMarca": null,
+    "FechaCreacion": "2026-02-26T21:48:30.987",
+    "EsDigital": false,
+    "EsBajoDemanda": false,
+    "InventarValor": null
+   },
+   {
+    "Codigo": "DEMO-NB-200",
+    "Descripcion": "Laptop Demo 15.6 pulgadas 16GB 512GB",
+    "PrecioNormal": 9000.0,
+    "PrecioAnterior": 0.0,
+    "PrecioDescuento": 8500.0,
+    "DescripcionDescuento": "Beneficio Efectivo",
+    "FechaCaducaDescuento": "01/01/0001",
+    "Imagen": "https://example.com/img/DEMO-NB-200.jpg",
+    "Existencia": [
+     {
+      "CodigoSucursal": "1",
+      "NombreSucursal": "SUCURSAL 1",
+      "Existencia": 1.0
+     },
+     {
+      "CodigoSucursal": "3",
+      "NombreSucursal": "SUCURSAL 3",
+      "Existencia": 1.0
+     }
+    ],
+    "EnBodega": false,
+    "EnTransito": false,
+    "OcultarBodegaTransito": false,
+    "AplicaPromoIndividual": false,
+    "Marca": "MARCA DEMO",
+    "EsFavorito": false,
+    "AreaFuncional": "NOT-17",
+    "AreaFuncionalDescripcion": null,
+    "AreaFuncional2Descripcion": null,
+    "LinkMarca": null,
+    "FechaCreacion": "2026-03-27T17:40:03.07",
+    "EsDigital": false,
+    "EsBajoDemanda": false,
+    "InventarValor": null
+   },
+   {
+    "Codigo": "DEMO-DOCK-300",
+    "Descripcion": "Estación de acoplamiento Demo USB-C",
+    "PrecioNormal": 1500.0,
+    "PrecioAnterior": 0.0,
+    "PrecioDescuento": 1400.0,
+    "DescripcionDescuento": "Beneficio Efectivo",
+    "FechaCaducaDescuento": "01/01/0001",
+    "Imagen": "https://example.com/img/DEMO-DOCK-300.jpg",
+    "Existencia": [],
+    "EnBodega": false,
+    "EnTransito": true,
+    "OcultarBodegaTransito": false,
+    "AplicaPromoIndividual": false,
+    "Marca": "DEMOTECH",
+    "EsFavorito": false,
+    "AreaFuncional": "NOT-DOCK",
+    "AreaFuncionalDescripcion": null,
+    "AreaFuncional2Descripcion": null,
+    "LinkMarca": null,
+    "FechaCreacion": "2026-07-28T01:24:35.917",
+    "EsDigital": false,
+    "EsBajoDemanda": false,
+    "InventarValor": null
+   }
+  ]
+ }
+}

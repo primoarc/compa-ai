@@ -1,0 +1,286 @@
+{
+ "_nota": "Docs sintéticos con la forma de core.dxpapi.com (view GT): productos, precios, pids y GTIN inventados.",
+ "head": {
+  "response": {
+   "numFound": 7,
+   "start": 0,
+   "docs": [
+    {
+     "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Wine_demo_100030_01.jpg",
+     "brand": "Marca Demo",
+     "title": "Marca Demo Vino Tinto Demo 1.5 L",
+     "pid": "100030",
+     "currency": "GTQ",
+     "master_sku": "100030",
+     "slug": "marca-demo-vino-tinto-demo-1-5-l-100030",
+     "fractionDigits": 2.0,
+     "availability_GT_6303": "true",
+     "inventory_GT_6303": "in stock",
+     "price_GT_6303": 10000.0,
+     "variants": [
+      {
+       "skuid": "100030",
+       "availability_GT_6303": [
+        "true"
+       ],
+       "inventory_GT_6303": [
+        "in stock"
+       ],
+       "price_GT_6303": [
+        10000.0
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "facet_counts": {
+   "facet_fields": {
+    "category": [
+     {
+      "cat_id": "G10D03",
+      "cat_name": "Alimentos",
+      "crumb": "/G10D03",
+      "tree_path": "/G10D03,Alimentos",
+      "count": 1147,
+      "parent": ""
+     },
+     {
+      "cat_id": "G10D33005",
+      "cat_name": "Enlatados",
+      "crumb": "/G10D03/G10D33005",
+      "tree_path": "/G10D03,Alimentos/G10D33005,Enlatados",
+      "count": 56,
+      "parent": "G10D03"
+     },
+     {
+      "cat_id": "F10D40",
+      "cat_name": "Moda y accesorios",
+      "crumb": "/F10D40",
+      "tree_path": "/F10D40,Moda y accesorios",
+      "count": 255,
+      "parent": ""
+     }
+    ]
+   }
+  }
+ },
+ "categories": {
+  "G10D03": [
+   "100010",
+   "100020",
+   "100040",
+   "100070"
+  ],
+  "G10D33005": [
+   "100010"
+  ],
+  "F10D40": [
+   "100020",
+   "100060"
+  ]
+ },
+ "docs": [
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Wine_demo_100030_01.jpg",
+   "brand": "Marca Demo",
+   "title": "Marca Demo Vino Tinto Demo 1.5 L",
+   "pid": "100030",
+   "currency": "GTQ",
+   "master_sku": "100030",
+   "slug": "marca-demo-vino-tinto-demo-1-5-l-100030",
+   "fractionDigits": 2.0,
+   "availability_GT_6303": "true",
+   "inventory_GT_6303": "in stock",
+   "price_GT_6303": 10000.0,
+   "variants": [
+    {
+     "skuid": "100030",
+     "availability_GT_6303": [
+      "true"
+     ],
+     "inventory_GT_6303": [
+      "in stock"
+     ],
+     "price_GT_6303": [
+      10000.0
+     ]
+    }
+   ]
+  },
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Hygiene_demo_10005_01.jpg",
+   "brand": "Acme",
+   "title": "Acme Producto de Higiene Demo 96 Unidades",
+   "pid": "10005",
+   "currency": "GTQ",
+   "master_sku": "10005",
+   "slug": "acme-producto-de-higiene-demo-96-unidades-10005",
+   "fractionDigits": 2.0,
+   "availability_GT_6303": "true",
+   "inventory_GT_6303": "in stock",
+   "price_GT_6303": 12000.0,
+   "original_price_without_saving_GT_6303": "150.00",
+   "variants": [
+    {
+     "skuid": "10005",
+     "availability_GT_6303": [
+      "true"
+     ],
+     "inventory_GT_6303": [
+      "in stock"
+     ],
+     "price_GT_6303": [
+      12000.0
+     ],
+     "original_price_without_saving_GT_6303": [
+      "150.00"
+     ]
+    }
+   ]
+  },
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Meat_demo_100020_01.jpg",
+   "brand": "Selección Demo",
+   "title": "Selección Demo Corte de Res Demo Bandeja",
+   "pid": "100020",
+   "currency": "GTQ",
+   "master_sku": "100020",
+   "slug": "seleccion-demo-corte-de-res-demo-bandeja-100020",
+   "fractionDigits": 2.0,
+   "availability_GT_6303": "false",
+   "inventory_GT_6303": "in stock",
+   "price_GT_6303": 22000.0,
+   "variants": [
+    {
+     "skuid": "100020",
+     "availability_GT_6303": [
+      "false"
+     ],
+     "inventory_GT_6303": [
+      "in stock"
+     ],
+     "price_GT_6303": [
+      22000.0
+     ]
+    }
+   ]
+  },
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Snacks_demo_100040_01.jpg",
+   "brand": "Acme",
+   "title": "Acme Snack Demo 6 Unidades / 900 g",
+   "pid": "100040",
+   "currency": "GTQ",
+   "master_sku": "100040",
+   "slug": "acme-snack-demo-6-unidades-900-g-100040",
+   "fractionDigits": 2.0,
+   "variants": [
+    {
+     "skuid": "100040"
+    }
+   ]
+  },
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Canned_demo_100010_01.jpg",
+   "brand": "Selección Demo",
+   "title": "Selección Demo Aceitunas Demo 2 Unidades / 600 g",
+   "pid": "100010",
+   "currency": "GTQ",
+   "master_sku": "100010",
+   "slug": "seleccion-demo-aceitunas-demo-2-unidades-600-g-100010",
+   "fractionDigits": 2.0,
+   "availability_GT_6303": "true",
+   "inventory_GT_6303": "out of stock",
+   "price_GT_6303": 11000.0,
+   "variants": [
+    {
+     "skuid": "100010",
+     "availability_GT_6303": [
+      "true"
+     ],
+     "inventory_GT_6303": [
+      "out of stock"
+     ],
+     "price_GT_6303": [
+      11000.0
+     ]
+    }
+   ]
+  },
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Hat_demo_100060_01.jpg",
+   "brand": "Acme",
+   "title": "Acme Gorra Demo Infantil Diseños Surtidos",
+   "pid": "100060",
+   "currency": "GTQ",
+   "master_sku": "100060-1234567000053",
+   "slug": "acme-gorra-demo-infantil-disenos-surtidos-100060",
+   "fractionDigits": 2.0,
+   "inventory_GT_6303": "in stock",
+   "variants": [
+    {
+     "skuid": "100060",
+     "inventory_GT_6303": [
+      "in stock"
+     ]
+    },
+    {
+     "skuid": "100060-1234567000060",
+     "availability_GT_6303": [
+      "true"
+     ],
+     "inventory_GT_6303": [
+      "in stock"
+     ],
+     "price_GT_6303": [
+      6000.0
+     ]
+    },
+    {
+     "skuid": "100060-1234567000077",
+     "availability_GT_6303": [
+      "true"
+     ],
+     "inventory_GT_6303": [
+      "in stock"
+     ],
+     "price_GT_6303": [
+      6000.0
+     ]
+    }
+   ]
+  },
+  {
+   "thumb_image": "https://d31f1ehqijlcua.cloudfront.net/n/0/0/0/0/Coffee_demo_100070_01.jpg",
+   "brand": "Marca Demo",
+   "title": "Marca Demo Café Molido Demo 907 g / 2 lb",
+   "pid": "100070",
+   "currency": "GTQ",
+   "master_sku": "100070-12345670008",
+   "slug": "marca-demo-cafe-molido-demo-907-g-2-lb-100070",
+   "fractionDigits": 2.0,
+   "inventory_GT_6303": "in stock",
+   "variants": [
+    {
+     "skuid": "100070",
+     "inventory_GT_6303": [
+      "in stock"
+     ]
+    },
+    {
+     "skuid": "100070-12345670008",
+     "availability_GT_6303": [
+      "true"
+     ],
+     "inventory_GT_6303": [
+      "in stock"
+     ],
+     "price_GT_6303": [
+      14000.0
+     ]
+    }
+   ]
+  }
+ ]
+}

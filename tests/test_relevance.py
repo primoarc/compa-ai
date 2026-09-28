@@ -100,6 +100,12 @@ CASES = [
     ("mini split", "Aire Acondicionado Mini Split Inverter MSAFB-12CR 12,000 BTU", True),
     ("licuadora", "Licuadora Black and Decker plástica de 2 velocidades", True),
     ("audifonos bluetooth", "Audífonos Bluetooth In Ear Sony WF-C510", True),
+    # --- intención de precio: "barata" no se exige en el nombre ---
+    ("tele 55 barata", 'Televisor Samsung 55" 4K UHD', True),
+    ("tele 55 barata", 'Televisor Samsung 65" 4K UHD', False),
+    ("laptop mas barata", "Laptop HP 15 Intel Core i5 8GB", True),
+    ("ofertas", "Televisor Samsung 55", False),
+    ("barato", "Licuadora Oster", False),
 ]
 
 failures = []
