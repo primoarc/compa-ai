@@ -235,6 +235,10 @@ async def enumerate_magento(
     done = 0
     declared = 0
     no_total = 0      # categorías cuya primera página falló: su total no se sabe
+    # Leídos contra declarados: cada categoría declara su total contando los
+    # productos que también están en otras, así que se compara contra lo listado
+    # por categoría (con repetidos) más las fichas sin precio, no contra únicos.
+    listed = 0
     failed: list[str] = []
     mode = "categorías del menú"
     sources: list[Category] = []
@@ -255,7 +259,7 @@ async def enumerate_magento(
         head = "parcial" if stats.partial else "completo"
         parts = [f"{head}: {done} de {len(sources)} {mode}, {stats.records:,} productos"]
         if declared:
-            parts.append(f"{declared:,} declarados, cobertura {stats.records / declared:.0%}")
+            parts.append(f"{listed:,} listados de {declared:,} declarados, cobertura {listed / declared:.1%}")
         if no_total:
             parts.append(f"{no_total} categorías sin total (la cobertura real es menor)")
         if failed:
@@ -298,6 +302,7 @@ async def enumerate_magento(
                 fresh = [r for r in recs if r.store_sku not in cat_ids]
                 if not fresh:
                     break
+                listed += len(fresh) + max(0, len(_tiles(html)) - len(recs))
                 for rec in fresh:
                     cat_ids.add(rec.store_sku)
                     if rec.store_sku in seen:

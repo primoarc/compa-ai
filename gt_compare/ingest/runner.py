@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Optional
 
+from ..catalog_search import CATALOG_STORES
 from ..db import Database
 from ..history import Observation, apply_observations, now_iso, today_utc
 from ..products import plausible_price, upsert_products
@@ -96,6 +97,9 @@ async def run_store(
         VTEX_PACING if store.kind == "vtex" else PACING.get(store.key, DEFAULT_PACING)
     )
     daily = daily_marked(db)
+    # Sus resultados de búsqueda salen del catálogo con "actualizado hace X":
+    # se marcan como vistos todos los días para que esa edad sea exacta.
+    mark_all = store.key in CATALOG_STORES
     changed = 0
     batch: list[ProductRecord] = []
     status = "ok"
@@ -111,7 +115,8 @@ async def run_store(
             for r in batch
             if r.store_sku in ids
         ]
-        changed += apply_observations(db, day, obs, run_id, daily)
+        marked = daily | frozenset(o.product_id for o in obs) if mark_all else daily
+        changed += apply_observations(db, day, obs, run_id, marked)
         batch = []
 
     try:

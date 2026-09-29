@@ -581,6 +581,14 @@ const ago = sec => {
   const h = Math.round(m/60);
   return `precio guardado hace ${h} h`;
 };
+// Tiendas que responden desde el catálogo diario: cuándo se vio ese precio.
+const updated = sec => {
+  const h = Math.round(sec/3600);
+  if(h < 1)  return 'actualizado hace menos de 1 h';
+  if(h < 36) return `actualizado hace ${h} h`;
+  const d = Math.round(h/24);
+  return `actualizado hace ${d} días`;
+};
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const imgTag = (src,cls) => src
   ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" onerror="this.classList.add('ph');this.removeAttribute('src');this.textContent='—'">`
@@ -796,7 +804,8 @@ function rowHtml(o, i, best, storeClass){
     + (o.cash_price ? ` · ${fmt(o.cash_price)} en efectivo` : '');
   const extra = o.count > 1 ? ` · ${o.count} relevantes` : '';
   // La tienda no respondió y estamos mostrando el último precio conocido.
-  const stale = o.stale_age != null ? ` · <span class="stale">${ago(o.stale_age)}</span>` : '';
+  const stale = o.stale_age != null ? ` · <span class="stale">${ago(o.stale_age)}</span>`
+    : o.seen_age != null ? ` · <span class="${o.seen_age > 36*3600 ? 'stale' : ''}">${updated(o.seen_age)}</span>` : '';
   // El tamaño hace evidente que dos filas no son el mismo aparato. Sustituye al
   // "+QX" anterior, que restaba precios de productos diferentes.
   const spec = o.size ? `<span class="spec">${+o.size}"</span>` : '';

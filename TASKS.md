@@ -70,17 +70,18 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [ ] Copy contra Turso (lo corre el dueño)
 
 ## Ronda 3 (La Curacao y RadioShack, 28-sep)
-- [ ] Primer 406 por tienda: todas las cabeceras y 300 caracteres del cuerpo; aclarar "server=?"
-- [ ] Curacao/RadioShack: 2,5 s, un reintento del 406 tras 20 s, seguir con la siguiente categoría
-- [ ] Cobertura leídos/declarados en el resultado de cada tienda
-- [ ] Flag de solo ingesta en workflow_dispatch
-- [ ] Prueba en Actions de las dos tiendas y decisión por la regla del 95%
-- [ ] Precios de más de 2 días fuera del detector, /ofertas, /oferta-del-dia y badges (con test de corrida parcial)
-- [ ] "actualizado hace X" en resultados desde catálogo
-- [ ] ubuntu-24.04 en los workflows
-- [ ] Tiempos del post-proceso por fase y estimado de la corrida diaria
-- [ ] Job local de Kemik: hora según uso de la Mac, qué verificar en la primera corrida
-- [ ] Exportar las 30 primeras de /ofertas para revisión manual
+- [x] Primer 406 por tienda: todas las cabeceras y 300 caracteres del cuerpo; aclarar "server=?"
+- [x] Curacao/RadioShack: 2,5 s, un reintento del 406 tras 20 s, seguir con la siguiente categoría
+- [x] Cobertura leídos/declarados en el resultado de cada tienda
+- [x] Flag de solo ingesta en workflow_dispatch
+- [x] Prueba en Actions de las dos tiendas y decisión por la regla del 95% (≤14% y ≤19%: falta la prueba desde la Mac)
+- [ ] Prueba desde la Mac contra Turso (la corre el dueño) y, si llega al 95%, pasarlas a LOCAL_STORES
+- [x] Precios de más de 2 días fuera del detector, /ofertas, /oferta-del-dia y badges (con test de corrida parcial)
+- [x] "actualizado hace X" en resultados desde catálogo
+- [x] ubuntu-24.04 en los workflows
+- [x] Tiempos del post-proceso por fase y estimado de la corrida diaria
+- [x] Job local de Kemik: hora según uso de la Mac, qué verificar en la primera corrida
+- [x] Exportar las 30 primeras de /ofertas para revisión manual
 - [ ] PR listo con comandos, sin mergear
 
 ## Cierre

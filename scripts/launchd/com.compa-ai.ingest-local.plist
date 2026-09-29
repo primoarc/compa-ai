@@ -10,14 +10,14 @@
     <string>/bin/zsh</string>
     <string>__REPO__/scripts/ingest_local.sh</string>
   </array>
-  <!-- 01:30 hora de la Mac (Guatemala): termina antes de que Actions corra el detector a las 03:00.
-       Si la Mac está dormida a esa hora, launchd la corre al despertar. -->
+  <!-- 20:00 hora de la Mac (Guatemala), cuando suele estar encendida; son las 02:00 UTC,
+       antes del detector de Actions (09:00 UTC). Si la Mac duerme, launchd la corre al despertar. -->
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
-    <integer>1</integer>
+    <integer>20</integer>
     <key>Minute</key>
-    <integer>30</integer>
+    <integer>0</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>__HOME__/.gt-compare/ingest-local.log</string>

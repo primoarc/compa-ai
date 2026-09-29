@@ -4,13 +4,13 @@ La Curacao, RadioShack, Steren y EPA prohíben sus páginas de búsqueda
 (`/search/`, `/catalogsearch/`). Para ellas no se consulta la tienda en vivo:
 se busca en el catálogo que la ingesta diaria recorre por categorías, que sí
 están permitidas. El precio es el de la última corrida y se etiqueta con su
-edad, igual que un precio guardado.
+edad: "actualizado hace X" por producto.
 """
 
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from . import relevance
@@ -32,25 +32,32 @@ def _fts_query(text: str) -> Optional[str]:
     return " AND ".join(f'"{w}"*' for w in words) if words else None
 
 
-def _catalog_age(db: Database, store_key: str) -> Optional[int]:
+def _last_run(db: Database, store_key: str) -> Optional[datetime]:
     row = db.query_one(
         """SELECT MAX(finished_at) AS f FROM runs
            WHERE store_key=? AND kind='ingest' AND status IN ('ok','partial')""",
         (store_key,),
     )
-    if not row or not row["f"]:
-        return None
-    finished = datetime.fromisoformat(row["f"])
-    return int((datetime.now(timezone.utc) - finished).total_seconds())
+    return datetime.fromisoformat(row["f"]) if row and row["f"] else None
+
+
+def seen_age(seen_day: str, last_run: datetime, now: datetime) -> int:
+    """Segundos desde que se vio un precio. Estas tiendas se marcan como vistas
+    en cada corrida, así que un end_day igual al día de la última corrida es esa
+    corrida; uno anterior (corrida parcial que no lo alcanzó) cuenta días enteros."""
+    run_age = int((now - last_run).total_seconds())
+    days = (last_run.date() - date.fromisoformat(seen_day)).days
+    return run_age if days <= 0 else run_age + days * 86400
 
 
 def search(store: Store, query: str, *, db: Optional[Database] = None, plan=None) -> StoreResult:
     db = db or get_db()
     if db is None:
         return StoreResult(store, [], ok=False, error="catálogo no disponible")
-    age = _catalog_age(db, store.key)
-    if age is None:
+    last_run = _last_run(db, store.key)
+    if last_run is None:
         return StoreResult(store, [], ok=False, error="catálogo sin corridas")
+    now = datetime.now(timezone.utc)
     variants = list(plan.search_queries[:6]) if plan is not None and getattr(plan, "search_queries", None) \
         else relevance.search_queries(query, limit=4)
     seen: set[int] = set()
@@ -61,7 +68,8 @@ def search(store: Store, query: str, *, db: Optional[Database] = None, plan=None
             continue
         rows = db.query(
             """SELECT p.id, p.name, p.url, p.image, p.cur_price, p.cur_list_price, p.cur_available,
-                      p.cur_cash_price
+                      p.cur_cash_price,
+                      (SELECT MAX(h.end_day) FROM price_history h WHERE h.product_id = p.id) AS seen_day
                FROM product_search JOIN products p ON p.id = product_search.rowid
                WHERE product_search MATCH ? AND p.store_key = ? AND p.sku_level = 1
                  AND p.cur_price IS NOT NULL
@@ -79,8 +87,8 @@ def search(store: Store, query: str, *, db: Optional[Database] = None, plan=None
                 store_key=store.key, store_name=store.name, name=r["name"], price=r["cur_price"],
                 available=1 if (r["cur_available"] is None or r["cur_available"] > 0) else 0,
                 url=r["url"], image=r["image"], list_price=r["cur_list_price"],
-                cash_price=r["cur_cash_price"],
+                cash_price=r["cur_cash_price"], seen_age=seen_age(r["seen_day"], last_run, now),
             ))
         if sum(1 for p in products if relevance.is_relevant(query, p.name)) >= ENOUGH:
             break
-    return StoreResult(store, products, ok=True, stale_age=age)
+    return StoreResult(store, products, ok=True)

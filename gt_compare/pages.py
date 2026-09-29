@@ -25,7 +25,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from . import clusters
 from .db import Database, get_db
 from .decide import schemas as dschemas, taxonomy
-from .history import series, today_utc, window_stats
+from .history import fresh_since, series, today_utc, window_stats
 from .images import thumb
 from .stores import load_stores
 
@@ -265,9 +265,19 @@ def _latest_deal(db: Database, pid: int) -> Optional[dict]:
     marks = ",".join("?" * len(FEED_STATUSES))
     return db.query_one(
         f"""SELECT * FROM deals WHERE product_id=? AND status IN ({marks})
-            AND detected_on >= date('now','-2 day') ORDER BY detected_on DESC LIMIT 1""",
-        (pid, *FEED_STATUSES),
+            AND detected_on >= ? ORDER BY detected_on DESC LIMIT 1""",
+        (pid, *FEED_STATUSES, fresh_since(today_utc())),
     )
+
+
+# Precio visto en los últimos FRESH_DAYS días. "+" evita el índice de end_day:
+# se busca por producto, pocas filas.
+FRESH_SQL = """EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = {col}
+                       AND +h.end_day >= ?)"""
+
+
+def _is_fresh(hist: list[dict], today: str) -> bool:
+    return bool(hist) and max(r["end_day"] for r in hist) >= fresh_since(today)
 
 
 def _feed_day(db: Database) -> Optional[str]:
@@ -277,13 +287,15 @@ def _feed_day(db: Database) -> Optional[str]:
 
 def feed(db: Database, *, category: str = "", store: str = "", limit: int = 60) -> list[dict]:
     day = _feed_day(db)
-    if not day:
-        return []
+    since = fresh_since(today_utc())
+    if not day or day < since:
+        return []  # el detector no corrió en días: ninguna oferta es vigente
     sql = [f"""SELECT d.*, p.name, p.store_key, p.url, p.image, p.category_id, p.cur_price
                FROM deals d JOIN products p ON p.id = d.product_id
                WHERE d.detected_on = ? AND d.kind IN ({",".join("?" * len(FEED_KINDS))})
-               AND d.status IN ({",".join("?" * len(FEED_STATUSES))})"""]
-    args: list = [day, *FEED_KINDS, *FEED_STATUSES]
+               AND d.status IN ({",".join("?" * len(FEED_STATUSES))})
+               AND {FRESH_SQL.format(col="d.product_id")}"""]
+    args: list = [day, *FEED_KINDS, *FEED_STATUSES, since]
     # Un price error solo sale si alguien lo aprobó en el panel.
     sql.append("AND (d.kind != 'posible_error' OR d.status = 'approved')")
     if category:
@@ -338,10 +350,12 @@ async def product_page(pid: int) -> HTMLResponse:
     today = today_utc()
     hist = series(db, pid, (date.fromisoformat(today) - timedelta(days=95)).isoformat())
     price = float(p["cur_price"] or 0)
-    badge = price_badge(hist, price, today)
-    deal = _latest_deal(db, pid)
+    fresh = _is_fresh(hist, today)
+    # Sin avistamiento reciente no se opina del precio: puede ya no existir.
+    badge = price_badge(hist, price, today) if fresh else None
+    deal = _latest_deal(db, pid) if fresh else None
     s30 = window_stats(hist, today, 30, exclude_today=True)
-    reference = deal["reference"] if deal else s30.median
+    reference = deal["reference"] if deal else (s30.median if fresh else None)
     pct = _pct(price, reference)
     store = store_name(p["store_key"])
     canonical = f"{SITE_URL}/p/{pid}"
@@ -355,8 +369,11 @@ async def product_page(pid: int) -> HTMLResponse:
     if pct and pct >= 5:
         label = "En otras tiendas" if _vs_stores(deal) else "Normal"
         was = f'<div class="was">{label} <s>{_e(money(reference))}</s> · {pct}% menos</div>'
-    elif p["cur_list_price"] and p["cur_list_price"] > price:
+    elif fresh and p["cur_list_price"] and p["cur_list_price"] > price:
         was = f'<div class="was">La tienda dice que antes costaba {_e(money(p["cur_list_price"]))}</div>'
+    elif not fresh and hist:
+        seen = max(r["end_day"] for r in hist)
+        was = f'<div class="was">Último precio visto el {_e(seen)}; puede haber cambiado.</div>'
     badge_html = f'<span class="badge {badge[1]}">{_e(badge[0])}</span>' if badge else ""
     # Condición de pago: el precio grande siempre es el que vale con cualquier medio
     # de pago (el que se compara con otras tiendas); el de contado va aparte.
@@ -424,10 +441,14 @@ async def ofertas(categoria: str = "", tienda: str = "") -> HTMLResponse:
 
 
 def daily_deal(db: Database) -> Optional[dict]:
+    """La última elegida, si su oferta y su precio siguen vigentes."""
+    since = fresh_since(today_utc())
     return db.query_one(
-        """SELECT d.*, p.name, p.store_key, p.url, p.image, dp.day FROM daily_pick dp
-           JOIN deals d ON d.id = dp.deal_id JOIN products p ON p.id = d.product_id
-           ORDER BY dp.day DESC LIMIT 1"""
+        f"""SELECT d.*, p.name, p.store_key, p.url, p.image, dp.day FROM daily_pick dp
+            JOIN deals d ON d.id = dp.deal_id JOIN products p ON p.id = d.product_id
+            WHERE d.detected_on >= ? AND {FRESH_SQL.format(col="d.product_id")}
+            ORDER BY dp.day DESC LIMIT 1""",
+        (since, since),
     )
 
 
@@ -448,8 +469,10 @@ def _og_deal(db: Database, pid: int) -> dict:
     today = today_utc()
     hist = series(db, pid, (date.fromisoformat(today) - timedelta(days=35)).isoformat())
     price = float(p["cur_price"] or 0)
-    deal = _latest_deal(db, pid)
-    reference = deal["reference"] if deal else window_stats(hist, today, 30, exclude_today=True).median
+    fresh = _is_fresh(hist, today)
+    deal = _latest_deal(db, pid) if fresh else None
+    reference = deal["reference"] if deal else (
+        window_stats(hist, today, 30, exclude_today=True).median if fresh else None)
     pct = _pct(price, reference)
     points = []
     for i in range(30, 0, -1):
@@ -460,7 +483,8 @@ def _og_deal(db: Database, pid: int) -> dict:
                 break
     return {"name": p["name"], "store": store_name(p["store_key"]), "price": price,
             "reference": reference, "drop_pct": (pct or 0) / 100, "series": points,
-            "tag": None if pct and pct >= 5 else "Precio de hoy", "vs_stores": _vs_stores(deal)}
+            "tag": None if pct and pct >= 5 else ("Precio de hoy" if fresh else "Último precio visto"),
+            "vs_stores": _vs_stores(deal)}
 
 
 @router.get("/og/p/{name}")
