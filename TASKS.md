@@ -82,7 +82,7 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Tiempos del post-proceso por fase y estimado de la corrida diaria
 - [x] Job local de Kemik: hora según uso de la Mac, qué verificar en la primera corrida
 - [x] Exportar las 30 primeras de /ofertas para revisión manual
-- [ ] PR listo con comandos, sin mergear
+- [x] PR listo con comandos, sin mergear
 
 ## Cierre
 - [x] Chequeo de tipos (pyright, todo el paquete) y 14 suites en verde
