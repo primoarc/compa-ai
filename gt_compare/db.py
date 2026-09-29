@@ -184,6 +184,14 @@ END;
 """
 
 
+def _result_id(sql: str, lastrowid: Optional[int], rowcount: int) -> int:
+    """`execute` devuelve el id insertado en un INSERT y las filas tocadas en lo
+    demás. SQLite arrastra el último id aunque la sentencia sea un UPDATE."""
+    if sql.lstrip().upper().startswith("INSERT") and lastrowid is not None:
+        return lastrowid
+    return max(rowcount, 0)
+
+
 class Database:
     """Interfaz mínima común a los dos backends.
 
@@ -250,7 +258,7 @@ class SQLiteDatabase(Database):
         with self._lock:
             cur = self._conn.execute(sql, tuple(params))
             self.rows_written += max(cur.rowcount, 0)
-            return cur.lastrowid if cur.lastrowid is not None else cur.rowcount
+            return _result_id(sql, cur.lastrowid, cur.rowcount)
 
     def executemany(self, sql: str, rows: Iterable[Sequence[Any]]) -> None:
         with self._lock:
@@ -414,7 +422,7 @@ class TursoDatabase(Database):
     def execute(self, sql: str, params: Sequence[Any] = ()) -> int:
         result = self._pipeline([(sql, params)])[0]
         rowid = result.get("last_insert_rowid")
-        return int(rowid) if rowid else int(result.get("affected_row_count") or 0)
+        return _result_id(sql, int(rowid) if rowid else None, int(result.get("affected_row_count") or 0))
 
     def _send(self, stmts: list[tuple[str, Sequence[Any]]]) -> list[dict]:
         """Pipeline con reintentos ante fallas de red. Solo para sentencias

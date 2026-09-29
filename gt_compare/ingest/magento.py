@@ -31,8 +31,8 @@ MAX_PAGES_PER_CATEGORY = 400
 _UNICOMER_SKIP = {"gift-card", "promociones-gt", "lo-mas-nuevo"}
 
 # Respaldo si el menú no expone categorías.
-# Lo que manda un navegador al pedir una página. httpx manda "Accept: */*" por
-# defecto; La Curacao y RadioShack respondieron 406 desde GitHub con eso.
+# Lo que manda un navegador al pedir una página (httpx manda "Accept: */*").
+# No cambió los 406 de La Curacao y RadioShack desde GitHub: eso es su WAF.
 HTML_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }

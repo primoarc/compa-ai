@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from ..db import Database
@@ -161,18 +161,37 @@ def _due(db: Database, store_key: str, day: str) -> bool:
     return (date.fromisoformat(day) - date.fromisoformat(row["d"])).days >= every
 
 
+ABANDON_AFTER_HOURS = 6  # más que el timeout del workflow (5 h)
+
+
+def close_abandoned(db: Database) -> int:
+    """Corridas que quedaron en 'running' (cancelada, Mac apagada a mitad): se
+    marcan 'abandoned' para que nadie las lea como vigentes."""
+    return db.execute(
+        """UPDATE runs SET status='abandoned', finished_at=?
+           WHERE status='running' AND started_at < ?""",
+        (now_iso(), (datetime.now(timezone.utc) - timedelta(hours=ABANDON_AFTER_HOURS))
+         .replace(microsecond=0).isoformat()),
+    )
+
+
 async def run_all(db: Database, *, only: Optional[list[str]] = None, limit: int = 0,
-                  day: Optional[str] = None) -> list[RunResult]:
+                  day: Optional[str] = None, cadence: Optional[bool] = None) -> list[RunResult]:
     """Tiendas de a una: nada de esto es tan urgente como para pegarle a dos a la vez.
 
-    Nombrar una tienda con `only` la corre aunque no le toque por cadencia.
+    `cadence`: respetar los días entre corridas (Novex cada 3). Por defecto se
+    respeta salvo que `only` nombre tiendas a mano.
     """
     day = day or today_utc()
+    respect = (not only) if cadence is None else cadence
+    abandoned = close_abandoned(db)
+    if abandoned:
+        logger.info("%s corridas viejas quedaron en 'running': marcadas 'abandoned'", abandoned)
     results = []
     for store in load_stores():
         if only and store.key not in only:
             continue
-        if not only and not _due(db, store.key, day):
+        if respect and not _due(db, store.key, day):
             logger.info("%s: no le toca hoy", store.key)
             continue
         results.append(await run_store(db, store, day=day, limit=limit))

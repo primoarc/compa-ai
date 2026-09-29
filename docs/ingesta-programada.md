@@ -5,23 +5,21 @@ con `schedule`. En ambos casos la base de producción es Turso.
 
 ## Recomendación
 
-**Híbrido: GitHub Actions para 11 tiendas y el cron local para Kemik** (y, si siguen con
-406, La Curacao y RadioShack). El cron local se queda hasta que se cumplan las dos
-condiciones del dueño: alcance de las 13 tiendas desde GitHub y una corrida manual completa
-contra Turso.
+**Híbrido: GitHub Actions para 10 tiendas y la Mac (launchd) para Kemik, La Curacao y
+RadioShack.** La lista vive en `gt_compare/ingest/hosts.py` (`LOCAL_STORES`); Actions corre
+`--where actions` y la Mac `--where local`, sin tiendas en común.
 
-Resultado del job `reachability` de CI (28-sep, 30 productos por tienda desde GitHub):
-
-| Tienda | Resultado | Detalle |
+| Tienda | Desde GitHub | Dónde se ingiere |
 |---|---|---|
-| Kemik | **bloqueada** | 403 en todas las páginas (Cloudflare con IPs de datacenter); 0 productos |
-| La Curacao | parcial | 406 en 3 de 6 páginas |
-| RadioShack | parcial | 406 en 4 de 7 páginas |
-| Siman, Cemaco, Walmart | bien | los 400 eran un error nuestro (rango de precio "1e+06"), ya corregido |
-| Max, Steren, EPA, Intelaf, Novex, Sears, PriceSmart | bien | sin errores |
+| Kemik | **403** en todas las páginas (Cloudflare con IPs de datacenter) | Mac |
+| La Curacao | **406** sin cuerpo en 13 de 21 páginas, también con `Accept` de navegador | Mac |
+| RadioShack | **406** sin cuerpo en 11 de 15 páginas, también con `Accept` de navegador | Mac |
+| Siman, Cemaco, Walmart, Max, Steren, EPA, Intelaf, Novex, Sears, PriceSmart | sin errores | Actions |
 
-Para La Curacao y RadioShack se bajó el ritmo (1 petición por segundo); el próximo job de
-CI dirá si alcanza. Kemik no tiene arreglo desde Actions sin un proxy residencial (pago).
+La Curacao y RadioShack se probaron con una corrida manual de solo esas dos
+(run 36497703526, 28-sep): con cabeceras de navegador y 1 petición por segundo siguieron los
+406, que llegan sin cabecera `server` y con cuerpo vacío en páginas que desde la Mac
+responden bien. Es el WAF bloqueando IPs de datacenter; no se esquiva.
 
 Motivo de fondo para Actions: no depende de que la Mac esté encendida a las 3 a. m., es
 gratis en un repo público y deja logs por corrida.
@@ -220,3 +218,66 @@ read -rs "TURSO_TOKEN?Token de Turso: "; echo
 Importante: con esta rama, la búsqueda en vivo de La Curacao, RadioShack, Steren y EPA
 sale del catálogo guardado. **Hay que configurar Turso en Vercel antes de mergear**; si
 no, en producción esas cuatro tiendas aparecen como "catálogo no disponible".
+
+## Job local (launchd)
+
+Corre las tiendas de `LOCAL_STORES` (`gt_compare/ingest/hosts.py`) contra Turso, con
+`scripts/ingest_local.sh`, que carga `~/.gt-compare/turso.env` (`set -a; source; set +a`)
+sin imprimirlo. No hace post-proceso: categorías, grupos y detector los corre Actions.
+
+- **Hora:** 01:30 hora de la Mac (Guatemala). Las tres tiendas tardan ~35 min (Kemik ~25,
+  La Curacao ~7, RadioShack ~3), así que terminan antes de que Actions arranque a las 03:00 y
+  su detector ya ve esos precios del día.
+- **Mac dormida:** con `StartCalendarInterval`, launchd corre el trabajo al despertar (si se
+  perdieron varios, los junta en una sola corrida). **Mac apagada:** esa noche se pierde; al
+  día siguiente la corrida normal retoma. Si Kemik corre después del detector, sus ofertas
+  aparecen al día siguiente.
+- **Log:** `~/.gt-compare/ingest-local.log`.
+- **Escrituras:** el comando suma lo suyo a `db_usage` en Turso igual que Actions, así que el
+  aviso del 80% cuenta los dos lados. Las tres tiendas (~23 k productos) ya estaban dentro
+  del estimado de ~48%: el estimado cuenta los productos vistos por día de las 13 tiendas, y
+  cambiar dónde se ingieren no cambia cuánto se escribe.
+
+Ninguna tienda se ingiere en los dos lados: Actions corre `--where actions` y la Mac
+`--where local`, y las dos listas salen de `LOCAL_STORES` (`tests/test_hosts.py` comprueba
+que no se cruzan y que entre las dos suman las 13).
+
+## Base local de la Mac
+
+Deja de recibir ingesta: el cron viejo (las 13 tiendas a `~/.gt-compare/history.db`) se
+reemplaza por el job de launchd, que escribe a Turso. Hoy ocupa ~210 MB y quedaría congelada
+al 28-sep.
+
+Como respaldo sirve poco congelada. Si se quiere respaldo, lo razonable es copiar Turso a la
+Mac una vez por semana con el mismo comando al revés
+(`python -m gt_compare.ingest copy --from "$GT_COMPARE_DB_URL" --to ~/.gt-compare/respaldo.db`):
+~210 MB hoy, creciendo ~3 MB por día (~1 GB al año), y ~18 M filas leídas por copia en Turso
+(el plan gratis trae 500 M por mes). No está programado: se decide aparte.
+
+## Corrida cancelada del 28-sep (run 36492638919)
+
+Terminó Siman, Cemaco, Walmart y Steren; Max quedó `partial` por un timeout de Turso sin
+reintento (ya corregido: las escrituras se reintentan); La Curacao y RadioShack `partial` por
+406; EPA quedó en `running` al cancelar. Al empezar cada corrida, las filas de `runs` que
+siguen en `running` por más de 6 horas pasan a `abandoned`. La cadencia (Novex cada 3 días)
+y la edad del catálogo que muestra la búsqueda solo miran corridas `ok` o `partial`, que
+traen datos del día; `running` y `abandoned` no cuentan para nada. La corrida siguiente vuelve a recorrer todas las tiendas
+sin duplicar filas: los productos son upserts, el historial extiende o reemplaza el
+intervalo del día y las ofertas son una fila por producto y día.
+
+## Activar el job local
+
+Con `main` actualizado (después de mergear este cambio), desde la carpeta del repo:
+
+1. Quitar la línea vieja del cron (las 13 tiendas a la base local). Ver antes qué hay:
+   `crontab -l`, y luego `crontab -l | grep -v "gt_compare.ingest run" | crontab -`.
+2. Instalar el job:
+   `sed -e "s|__REPO__|$PWD|g" -e "s|__HOME__|$HOME|g" scripts/launchd/com.compa-ai.ingest-local.plist > ~/Library/LaunchAgents/com.compa-ai.ingest-local.plist`
+   y `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.compa-ai.ingest-local.plist`.
+3. Probarlo ya, sin esperar a la 01:30: `launchctl kickstart gui/$(id -u)/com.compa-ai.ingest-local`.
+4. Verificar: `tail -f ~/.gt-compare/ingest-local.log` muestra una línea por tienda
+   (`kemik ok ...`, `curacao ok ...`, `radioshack ok ...`) y al final
+   `Escrituras del mes ...`; `launchctl print gui/$(id -u)/com.compa-ai.ingest-local | grep "last exit code"`
+   debe decir 0.
+
+Para desactivarlo: `launchctl bootout gui/$(id -u)/com.compa-ai.ingest-local`.

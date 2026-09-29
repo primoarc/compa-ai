@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       stores:
-        description: "Tiendas separadas por espacio (vacío = todas)"
+        description: "Tiendas separadas por espacio (vacío = las de Actions, sin las que van en la Mac)"
         required: false
         default: ""
 
@@ -81,7 +81,8 @@ jobs:
         env:
           STORES: ${{ github.event.inputs.stores }}
         run: |
-          args=()
+          # Sin tiendas elegidas: las que le tocan a Actions (gt_compare/ingest/hosts.py).
+          args=(--where actions)
           for s in $STORES; do
             if [[ "$s" =~ ^[a-z]+$ ]]; then args+=(--store "$s"); fi
           done
