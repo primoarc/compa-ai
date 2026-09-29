@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 
 from .. import alerts, categorize, clusters, detector
 from ..db import Database, open_db
@@ -26,14 +27,28 @@ async def post_process(db: Database, day: str) -> dict:
     """
     uses = {u: use_enabled(u) for u in ("category", "match", "price_cause")}
     decider = Decider(db=db) if any(uses.values()) else None
+    seconds: dict[str, float] = {}
+
+    async def timed(name: str, coro):
+        started = time.monotonic()
+        try:
+            return await coro
+        finally:
+            seconds[name] = time.monotonic() - started
+            print(f"post {name:12} {seconds[name]:7.0f}s", flush=True)
+
+    async def sync(fn, *a):
+        return fn(*a)
+
     try:
         out = {
-            "categorias": await categorize.run(db, decider, use_jev=uses["category"]),
-            "grupos": await clusters.rebuild(db, decider if uses["match"] else None),
-            "detector": await detector.run(db, day, decider if uses["price_cause"] else None,
-                                           decider if uses["match"] else None),
-            "alertas": alerts.send_due(db, day),
+            "categorias": await timed("categorías", categorize.run(db, decider, use_jev=uses["category"])),
+            "grupos": await timed("grupos", clusters.rebuild(db, decider if uses["match"] else None)),
+            "detector": await timed("detector", detector.run(db, day, decider if uses["price_cause"] else None,
+                                                             decider if uses["match"] else None)),
+            "alertas": await timed("alertas", sync(alerts.send_due, db, day)),
         }
+        out["segundos"] = {k: round(v) for k, v in seconds.items()}
         if decider is not None:
             out["jev"] = {**decider.stats, "usd": round(decider.cost_usd(), 4)}
         return out

@@ -11,6 +11,11 @@ on:
         description: "Tiendas separadas por espacio (vacío = las de Actions, sin las que van en la Mac)"
         required: false
         default: ""
+      solo_ingesta:
+        description: "Solo ingesta: sin categorías, grupos, Jev ni detector (para pruebas)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -22,7 +27,7 @@ concurrency:
 
 jobs:
   ingest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 300
     env:
       GT_COMPARE_DB_URL: ${{ secrets.GT_COMPARE_DB_URL }}
@@ -80,12 +85,14 @@ jobs:
         if: steps.guard.outputs.ok == 'true'
         env:
           STORES: ${{ github.event.inputs.stores }}
+          ONLY_INGEST: ${{ github.event.inputs.solo_ingesta }}
         run: |
           # Sin tiendas elegidas: las que le tocan a Actions (gt_compare/ingest/hosts.py).
           args=(--where actions)
           for s in $STORES; do
             if [[ "$s" =~ ^[a-z]+$ ]]; then args+=(--store "$s"); fi
           done
+          if [ "$ONLY_INGEST" = "true" ]; then args+=(--no-post); fi
           set -o pipefail
           python -m gt_compare.ingest run "${args[@]}" 2>&1 | tee ingest.log
       - name: Resumen
@@ -95,7 +102,7 @@ jobs:
             echo "### Corrida"
             grep -E "^AVISO" ingest.log | sed 's/^/> **/; s/$/**/' || true
             echo '```'
-            grep -E "^[a-z]+ +(ok|partial|failed|skipped)|^\{|^Escrituras del mes" ingest.log || true
+            grep -E "^[a-z]+ +(ok|partial|failed|skipped)|^\{|^Escrituras del mes|^post " ingest.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

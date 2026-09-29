@@ -135,6 +135,73 @@ OTRA = Store("otra", "Otra", "www.otra.test", kind="magento", search_path="/cata
 _, requested = crawl(OTRA)
 check("otras tiendas sí paginan", any("?p=2" in u for u in requested), True)
 
+# --- La Curacao: 406 intermitente, un reintento y seguir con la siguiente ---------
+import logging  # noqa: E402
+
+CURACAO_HOME = ('<a href="https://www.lacuracaonline.com/guatemala/c/audio">A</a>'
+                '<a href="https://www.lacuracaonline.com/guatemala/c/video">V</a>')
+PAGE1 = (FIX / "curacao_listing.html").read_text()
+
+
+def crawl_406(store, fails):
+    """`fails`: {url: cuántas veces responde 406 antes de dar 200}."""
+    pauses, log = [], []
+    left = dict(fails)
+
+    def handler(request):
+        url = str(request.url)
+        if left.get(url, 0) > 0:
+            left[url] -= 1
+            return httpx.Response(406, headers={"x-demo": "1", "set-cookie": "sesion=abc"})
+        if request.url.path == "/guatemala/":
+            return httpx.Response(200, text=CURACAO_HOME)
+        if "p=2" in url:
+            return httpx.Response(200, text="<ol></ol>")
+        return httpx.Response(200, text=PAGE1)
+
+    class Grab(logging.Handler):
+        def emit(self, record):
+            log.append(record.getMessage())
+
+    async def fake_sleep(sec):
+        pauses.append(sec)
+
+    async def run():
+        stats = EnumerationStats()
+        client = PoliteClient(store.key, min_interval=0, transport=httpx.MockTransport(handler),
+                              sleep=fake_sleep)
+        async with client:
+            recs = [r async for r in enumerate_magento(store, client, stats)]
+        return recs, stats
+
+    grab = Grab()
+    logging.getLogger("gt_compare.ingest").addHandler(grab)
+    try:
+        recs, stats = asyncio.run(run())
+    finally:
+        logging.getLogger("gt_compare.ingest").removeHandler(grab)
+    return recs, stats, pauses, log
+
+
+AUDIO_P2 = "https://www.lacuracaonline.com/guatemala/c/audio?p=2"
+_, stats, pauses, log = crawl_406(CURACAO, {AUDIO_P2: 1})
+check("406 que se recupera: pausa de 20 s y sin parcial", (pauses, stats.partial), ([20.0], False))
+_, stats, pauses, log = crawl_406(CURACAO, {AUDIO_P2: 2})
+check("406 que persiste: sigue con la otra categoría y queda parcial",
+      (pauses, stats.partial, "2 de 2" in stats.coverage_note, "incompletas por errores" in stats.coverage_note),
+      ([20.0], True, True, True))
+detail = [m for m in log if "primer 406" in m]
+check("primer 406 con todas las cabeceras, cookies tapadas",
+      (len(detail), "'x-demo': '1'" in detail[0], "abc" in detail[0], "(omitida)" in detail[0]),
+      (1, True, False, True))
+check("sin cabecera server se dice así", any("server=(sin cabecera) (cuerpo vacío)" in m for m in log), True)
+check("cobertura sobre lo declarado", "cobertura" in stats.coverage_note, True)
+VIDEO_P1 = "https://www.lacuracaonline.com/guatemala/c/video"
+_, stats, _, _ = crawl_406(CURACAO, {VIDEO_P1: 2})
+check("categoría sin total se avisa", "1 categorías sin total" in stats.coverage_note, True)
+_, stats, pauses, _ = crawl_406(EPA, {"https://gt.epaenlinea.com/": 1})
+check("otras tiendas no reintentan el 406", pauses, [])
+
 if failures:
     print(f"\n{len(failures)} FALLA(S):\n")
     for f in failures:

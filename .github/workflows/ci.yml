@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
   # ¿Las tiendas responden desde los servidores de GitHub? Es la condición para
   # mover la ingesta diaria a Actions. No falla el PR: solo informa.
   reachability:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     continue-on-error: true
     steps:

@@ -28,9 +28,9 @@ PACING = {
     "pricesmart": (2, 0.5),
     "novex": (2, 0.5),
     "sears": (2, 0.5),
-    # Desde IPs de GitHub respondieron 406 a la mitad de las páginas con 0,3 s.
-    "curacao": (1, 1.0),
-    "radioshack": (1, 1.0),
+    # Desde IPs de GitHub respondieron 406 intermitentes con 0,3 s y con 1 s.
+    "curacao": (1, 2.5),
+    "radioshack": (1, 2.5),
 }
 DEFAULT_PACING = (3, 0.3)
 
@@ -131,7 +131,8 @@ async def run_store(
         flush()
         status = "failed" if stats.records == 0 else "partial"
         stats.coverage_note += f" | error: {type(exc).__name__}: {exc}"
-    if status == "ok" and ("cortada" in stats.coverage_note or stats.errors > max(5, stats.pages // 10)):
+    if status == "ok" and (stats.partial or "cortada" in stats.coverage_note
+                           or stats.errors > max(5, stats.pages // 10)):
         status = "partial"
 
     seconds = time.monotonic() - started

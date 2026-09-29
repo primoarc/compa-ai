@@ -38,6 +38,7 @@ class EnumerationStats:
     records: int = 0
     errors: int = 0
     coverage_note: str = ""   # p.ej. "catálogo completo" o "parcial: 40 búsquedas"
+    partial: bool = False     # el enumerador sabe que quedó parte del catálogo sin leer
 
 
 class Enumerator(Protocol):

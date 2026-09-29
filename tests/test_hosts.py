@@ -23,7 +23,7 @@ everything = set(all_stores())
 check("son 13 tiendas", len(everything), 13)
 check("ninguna tienda en los dos lados", actions & local, set())
 check("entre los dos cubren las 13", actions | local, everything)
-check("las que GitHub no alcanza van en la Mac", local, {"kemik", "curacao", "radioshack"})
+check("las que GitHub no alcanza van en la Mac", local, {"kemik"})
 check("LOCAL_STORES solo nombra tiendas que existen", LOCAL_STORES - everything, set())
 try:
     stores_for("nube")

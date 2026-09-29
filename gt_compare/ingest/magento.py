@@ -40,6 +40,13 @@ HTML_HEADERS = {
 # Tiendas cuyo robots.txt prohíbe cualquier URL con "?" (Steren: "Disallow: /*?").
 NO_QUERY_STRING = {"steren"}
 
+# La Curacao y RadioShack devuelven 406 intermitentes desde IPs de GitHub
+# (run 36497703526: páginas 1 bien y la 2 o 3 con 406). Un 406 se reintenta
+# una vez tras una pausa, como los 404 de Kemik; si vuelve a fallar, la
+# categoría queda incompleta y se sigue con la siguiente.
+RETRY_406_STORES = {"curacao", "radioshack"}
+RETRY_406_AFTER = 20.0
+
 # Cada producto del listado es un <li class="item product product-item">.
 _RE_TILE_START = re.compile(r'<li\b[^>]*class="[^"]*\bproduct-item\b[^"]*"', re.I)
 _RE_FINAL_PRICE = re.compile(
@@ -227,23 +234,40 @@ async def enumerate_magento(
     seen: set[str] = set()
     done = 0
     declared = 0
+    no_total = 0      # categorías cuya primera página falló: su total no se sabe
+    failed: list[str] = []
     mode = "categorías del menú"
     sources: list[Category] = []
     cut = False
 
+    async def fetch(url: str):
+        resp = await client.get(url, headers=HTML_HEADERS)
+        stats.pages += 1
+        if resp.status_code == 406 and store.key in RETRY_406_STORES:
+            await client.pause(RETRY_406_AFTER)
+            resp = await client.get(url, headers=HTML_HEADERS)
+            stats.pages += 1
+        return resp
+
     def note() -> None:
-        extra = f", {declared:,} declarados" if declared else ""
-        stats.coverage_note = (
-            f"parcial: {done} de {len(sources)} {mode}, {stats.records:,} productos{extra}"
-        )
-        if limit and stats.records >= limit:
+        hit_limit = bool(limit) and stats.records >= limit
+        stats.partial = bool(failed) or cut or (done < len(sources) and not hit_limit)
+        head = "parcial" if stats.partial else "completo"
+        parts = [f"{head}: {done} de {len(sources)} {mode}, {stats.records:,} productos"]
+        if declared:
+            parts.append(f"{declared:,} declarados, cobertura {stats.records / declared:.0%}")
+        if no_total:
+            parts.append(f"{no_total} categorías sin total (la cobertura real es menor)")
+        if failed:
+            parts.append(f"{len(failed)} categorías incompletas por errores: {', '.join(failed[:8])}")
+        stats.coverage_note = "; ".join(parts)
+        if hit_limit:
             stats.coverage_note += f" (límite {limit})"
         if cut:
             stats.coverage_note += " (cortada por errores seguidos)"
 
     try:
-        resp = await client.get(f"https://{store.domain}{base}", headers=HTML_HEADERS)
-        stats.pages += 1
+        resp = await fetch(f"https://{store.domain}{base}")
         if resp.status_code == 200:
             sources = discover_categories(store, resp.text)
         else:
@@ -256,10 +280,12 @@ async def enumerate_magento(
         for cat in sources:
             cat_ids: set[str] = set()
             for page in range(1, max_pages + 1):
-                resp = await client.get(_page_url(cat.url, page), headers=HTML_HEADERS)
-                stats.pages += 1
+                resp = await fetch(_page_url(cat.url, page))
                 if resp.status_code != 200:
                     stats.errors += 1
+                    failed.append(f"{cat.name} p{page}")
+                    if page == 1:
+                        no_total += 1
                     break
                 html = resp.text
                 if page == 1:

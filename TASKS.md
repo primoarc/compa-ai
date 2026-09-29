@@ -69,6 +69,20 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Script de compatibilidad con Turso sin tocar la base (scripts/check_turso.py)
 - [ ] Copy contra Turso (lo corre el dueño)
 
+## Ronda 3 (La Curacao y RadioShack, 28-sep)
+- [ ] Primer 406 por tienda: todas las cabeceras y 300 caracteres del cuerpo; aclarar "server=?"
+- [ ] Curacao/RadioShack: 2,5 s, un reintento del 406 tras 20 s, seguir con la siguiente categoría
+- [ ] Cobertura leídos/declarados en el resultado de cada tienda
+- [ ] Flag de solo ingesta en workflow_dispatch
+- [ ] Prueba en Actions de las dos tiendas y decisión por la regla del 95%
+- [ ] Precios de más de 2 días fuera del detector, /ofertas, /oferta-del-dia y badges (con test de corrida parcial)
+- [ ] "actualizado hace X" en resultados desde catálogo
+- [ ] ubuntu-24.04 en los workflows
+- [ ] Tiempos del post-proceso por fase y estimado de la corrida diaria
+- [ ] Job local de Kemik: hora según uso de la Mac, qué verificar en la primera corrida
+- [ ] Exportar las 30 primeras de /ofertas para revisión manual
+- [ ] PR listo con comandos, sin mergear
+
 ## Cierre
 - [x] Chequeo de tipos (pyright, todo el paquete) y 14 suites en verde
 - [x] Revisión del diff contra main y correcciones
