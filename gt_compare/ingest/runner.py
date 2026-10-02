@@ -133,20 +133,27 @@ async def run_store(
         flush()
     except Exception as exc:  # noqa: BLE001
         logger.exception("ingesta %s falló", store.key)
-        flush()
         status = "failed" if stats.records == 0 else "partial"
         stats.coverage_note += f" | error: {type(exc).__name__}: {exc}"
+        try:
+            flush()
+        except Exception as again:  # noqa: BLE001 - la base sigue caída: se pierde el último lote
+            logger.error("ingesta %s: no se pudo guardar el último lote (%s)", store.key, type(again).__name__)
+            stats.coverage_note += f" | último lote sin guardar: {type(again).__name__}"
     if status == "ok" and (stats.partial or "cortada" in stats.coverage_note
                            or stats.errors > max(5, stats.pages // 10)):
         status = "partial"
 
     seconds = time.monotonic() - started
-    db.execute(
-        """UPDATE runs SET finished_at=?, status=?, pages=?, seen=?, changed=?, errors=?, notes=?
-           WHERE id=?""",
-        (now_iso(), status, stats.pages, stats.records, changed, stats.errors,
-         stats.coverage_note[:1000], run_id),
-    )
+    try:
+        db.execute(
+            """UPDATE runs SET finished_at=?, status=?, pages=?, seen=?, changed=?, errors=?, notes=?
+               WHERE id=?""",
+            (now_iso(), status, stats.pages, stats.records, changed, stats.errors,
+             stats.coverage_note[:1000], run_id),
+        )
+    except Exception as exc:  # noqa: BLE001 - queda en 'running' y la próxima corrida la marca 'abandoned'
+        logger.error("ingesta %s: no se pudo cerrar la corrida (%s)", store.key, type(exc).__name__)
     logger.info("%s: %s, %s registros, %s cambios, %s páginas, %s errores, %.0fs",
                 store.key, status, stats.records, changed, stats.pages, stats.errors, seconds)
     return RunResult(store.key, run_id, status, stats.records, changed, stats.pages,
@@ -200,5 +207,9 @@ async def run_all(db: Database, *, only: Optional[list[str]] = None, limit: int 
         if respect and not _due(db, store.key, day):
             logger.info("%s: no le toca hoy", store.key)
             continue
-        results.append(await run_store(db, store, day=day, limit=limit))
+        try:
+            results.append(await run_store(db, store, day=day, limit=limit))
+        except Exception as exc:  # noqa: BLE001 - una tienda caída no frena a las demás
+            logger.exception("ingesta %s: falló fuera de la tienda", store.key)
+            results.append(RunResult(store.key, 0, "failed", 0, 0, 0, 0, 0.0, f"error: {type(exc).__name__}"))
     return results

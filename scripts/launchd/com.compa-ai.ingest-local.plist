@@ -10,7 +10,7 @@
     <string>/bin/zsh</string>
     <string>__REPO__/scripts/ingest_local.sh</string>
   </array>
-  <!-- 20:00 hora de la Mac (Guatemala), cuando suele estar encendida; son las 02:00 UTC,
+  <!-- Kemik, La Curacao y RadioShack (~35 min). 20:00 hora de la Mac (Guatemala), cuando suele estar encendida; son las 02:00 UTC,
        antes del detector de Actions (09:00 UTC). Si la Mac duerme, launchd la corre al despertar. -->
   <key>StartCalendarInterval</key>
   <dict>

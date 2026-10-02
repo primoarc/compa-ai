@@ -12,9 +12,9 @@ from ..stores import load_stores
 
 # Tiendas que GitHub no alcanza y se ingieren desde la Mac. Ver docs/ingesta-programada.md.
 #   kemik: 403 en todas las páginas desde IPs de datacenter (Cloudflare).
-# La Curacao y RadioShack pasan aquí solo si en Actions leen menos del 95% de
-# lo que declaran y desde la Mac llegan al 95% (regla del dueño, 28-sep).
-LOCAL_STORES = frozenset({"kemik"})
+#   curacao, radioshack: 406 de Fastly a IPs de datacenter. Regla del dueño: 95% de
+#   lo declarado. Actions 13,1% y 8,8%; Mac 99,9% y 99,9% (2-oct).
+LOCAL_STORES = frozenset({"kemik", "curacao", "radioshack"})
 
 WHERE = ("actions", "local")
 

@@ -5,55 +5,73 @@ con `schedule`. En ambos casos la base de producción es Turso.
 
 ## Recomendación
 
-**Híbrido: GitHub Actions para las tiendas que responden desde GitHub y la Mac (launchd) para
-las que no.** La lista vive en `gt_compare/ingest/hosts.py` (`LOCAL_STORES`); Actions corre
-`--where actions` y la Mac `--where local`, sin tiendas en común.
+**Híbrido: GitHub Actions para 10 tiendas y la Mac (launchd) para Kemik, La Curacao y
+RadioShack.** La lista vive en `gt_compare/ingest/hosts.py` (`LOCAL_STORES`); Actions corre
+`--where actions` y la Mac `--where local`, sin tiendas en común (`tests/test_hosts.py`
+comprueba que no se cruzan y que suman 13).
 
-| Tienda | Desde GitHub | Dónde se ingiere |
-|---|---|---|
-| Kemik | **403** en todas las páginas (Cloudflare con IPs de datacenter) | Mac |
-| La Curacao | **406** intermitente: ≤14% de lo declarado (29-sep) | Actions por ahora; Mac si allí llega al 95% |
-| RadioShack | **406** intermitente: ≤19% de lo declarado (29-sep) | Actions por ahora; Mac si allí llega al 95% |
-| Siman, Cemaco, Walmart, Max, Steren, EPA, Intelaf, Novex, Sears, PriceSmart | sin errores | Actions |
+| Tienda | Desde GitHub | Desde la Mac | Dónde se ingiere |
+|---|---|---|---|
+| Kemik | **403** en todas las páginas (Cloudflare con IPs de datacenter) | completa | Mac |
+| La Curacao | **406** de Fastly: 13,1% de lo declarado | 99,9% | Mac |
+| RadioShack | **406** de Fastly: 8,8% de lo declarado | 99,9% | Mac |
+| Siman, Cemaco, Walmart, Max, Steren, EPA, Intelaf, Novex, Sears, PriceSmart | sin errores | | Actions |
 
 ### Regla para La Curacao y RadioShack (decisión del dueño, 28-sep)
 
-Cobertura = productos listados sobre productos declarados por la tienda (ver abajo cómo se
-cuenta):
-
-- 95% o más en Actions: se quedan en Actions.
+- 95% o más de cobertura en Actions: se quedan en Actions.
 - Menos de 95% en Actions y 95% o más desde la Mac: pasan a `LOCAL_STORES` con Kemik.
 - Menos de 95% en los dos lados: quedan como `partial`, con la etiqueta de datos parciales
   en el sitio, y se documenta en docs/robots.md. No se esquiva el bloqueo.
 
-**Cómo se cuenta.** Cada categoría de Magento declara su total ("N Resultados") contando
-también los productos que están en otras categorías. Se compara contra lo listado por
-categoría (con repetidos) más las fichas sin precio; comparado contra productos únicos, La
-Curacao daba 85% desde la Mac con cero errores. Si la primera página de una categoría falla,
-su total no se conoce y la nota lo avisa (la cobertura real es menor).
+Resultado (2-oct): menos de 95% en Actions y 99,9% desde la Mac en las dos → Mac.
 
-### Prueba en Actions (run 36515620063, 29-sep)
+### Cobertura: cómo se calcula
 
-Solo esas dos tiendas, solo ingesta, 2,5 s entre peticiones y un reintento del 406 tras 20 s:
+**Fórmula nueva** (desde el 2-oct), solo sobre categorías que declararon su total:
 
-| Tienda | Leídos | Declarados conocidos | Cobertura | Categorías con 406 |
-|---|---|---|---|---|
-| La Curacao | 120 | 879 (+6 categorías sin total; desde la Mac declara 3.042) | ≤14% | 11 de 13 |
-| RadioShack | 96 | 518 (+3 sin total; desde la Mac declara 1.120) | ≤19% | 7 de 11 |
+    cobertura = fichas de producto listadas / productos declarados
 
-Ningún reintento de 20 s rescató una página, y las dos corridas terminaron por el corte de 8
-errores seguidos. El bloqueo no depende del ritmo: la primera categoría de La Curacao
-falló en su página 1, justo después de la portada.
+- *Declarados*: la suma de "N Resultados" que muestra la página 1 de cada categoría.
+- *Fichas listadas*: los productos de cada categoría, contando una vez por categoría (un
+  producto que está en dos categorías cuenta dos veces, igual que en lo declarado), con o
+  sin precio. No cuenta la plantilla vacía de "Comparar productos" que Unicomer repite en
+  cada página (`<ol id="compare-items">`).
+- *Categorías sin total*: si la página 1 de una categoría falla, no se sabe cuántos
+  productos tiene. Esa categoría **no suma** ni a listados ni a declarados (no se cuenta como
+  leída), la nota de la corrida dice cuántas quedaron así ("N categorías sin total declarado:
+  cobertura no comprobable") y **una corrida con alguna categoría sin total no puede
+  afirmar el 95%**, sea cual sea el porcentaje.
 
-**Quién responde el 406.** No hay cabecera `server` (el "server=?" del log anterior era la
-cabecera ausente, no un error del logger) y el cuerpo viene vacío (0 bytes). Las cabeceras
-son de Fastly: `x-served-by: cache-iad-…, cache-hhr-…` y `x-cache: MISS, MISS` (dos capas de
-caché sin acierto), más `cache-control: private, no-store` y una CSP en modo solo reporte. Es
-decir, la petición pasa por el CDN y el 406 lo decide la regla que tienen detrás para IPs de
-datacenter. Las mismas URLs responden 200 desde la Mac.
+**Fórmula anterior:** productos únicos leídos / declarados. Subestima: cada categoría
+declara su total contando productos que también están en otras, y los únicos los cuentan
+una sola vez. Con cero errores, La Curacao daba 85%.
 
-**Siguiente paso:** la misma corrida desde la Mac contra Turso (comando en el PR). Si llega al
-95% en las dos, pasan a `LOCAL_STORES`.
+Hubo una versión intermedia (29-sep) que daba más de 100%: contaba la plantilla de
+"Comparar productos" como una ficha sin precio por página (+134 en La Curacao).
+
+| Corrida | La Curacao, anterior | La Curacao, nueva | RadioShack, anterior | RadioShack, nueva | Sin total |
+|---|---|---|---|---|---|
+| Mac, 28-sep (runs 81–82) | 2.587 / 3.042 = 85,0% | no recuperable¹ | 1.092 / 1.120 = 97,5% | no recuperable¹ | 0 y 0 |
+| Mac, 29-sep (runs 105–106, versión intermedia) | 2.587 / 3.045 = 85,0% | 104,2%² | 1.093 / 1.121 = 97,5% | 104,5%² | 0 y 0 |
+| Mac, 2-oct (en memoria, sin escribir en Turso) | 2.627 / 3.087 = 85,1% | 3.083 / 3.087 = **99,9%** | 1.091 / 1.118 = 97,6% | 1.117 / 1.118 = **99,9%** | 0 y 0 |
+| Actions, 29-sep (run 36515620063) | 120 / 879 = 13,7% | no recuperable¹ | 96 / 518 = 18,5% | no recuperable¹ | 6 y 3 |
+| Actions, 2-oct (run 37063390122) | 94 / 720 = 13,1% | 94 / 720 = **13,1%** | 24 / 272 = 8,8% | 24 / 272 = **8,8%** | 9 y 3 |
+
+¹ Esas corridas no guardaron las fichas por categoría; por eso se repitió la medición el
+2-oct con el mismo código en los dos lados. ² Con la plantilla de comparar contada; sin ella
+da ~99,8% (3.173 − 134 = 3.039 de 3.045).
+
+En Actions las dos fórmulas coinciden porque se lee tan poco que casi no hay productos en
+dos categorías. El umbral sigue en 95%.
+
+### Quién responde el 406
+
+No hay cabecera `server` (el "server=?" del log era la cabecera ausente, no un error del
+logger) y el cuerpo viene vacío. Las cabeceras son de Fastly: `x-served-by: cache-iad-…`,
+`x-cache: MISS, MISS`, `cache-control: private, no-store` y una CSP en modo solo reporte. Un
+reintento a los 20 s no rescató ninguna página en dos pruebas, y la primera categoría falla
+justo después de la portada: no depende del ritmo.
 
 ## Tiempo de corrida
 
@@ -68,16 +86,17 @@ run 36492638919); si no, la de la Mac del 28-sep.
 | Cemaco | 11,1 | Actions |
 | Siman | 8,8 | Actions |
 | Walmart | 7,5 | Actions |
-| La Curacao | ~6 + reintentos | Mac: 134 páginas; con 2,5 s por página son ~5,6 min, más 20 s por cada 406 |
 | Max | ~5,5 | Actions: 28 k de 32 k en 4,6 min antes del timeout de Turso |
 | Sears | 3,6 | Mac |
 | Steren | 3,2 | Actions |
 | Novex | 2,7 | Mac; cada 3 días |
-| RadioShack | ~2,5 + reintentos | Mac: 54 páginas a 2,5 s |
 | Intelaf | ~1 | Mac |
 | PriceSmart | ~0,5 | Mac |
-| **Actions, 12 tiendas** | **~70** | sin Kemik |
-| Kemik (Mac) | ~16–25 | Mac, 2,5 s por página y reintento de 404 |
+| **Actions, 10 tiendas** | **~61** | |
+| Kemik (Mac) | ~16–25 | 2,5 s por página y reintento de 404 |
+| La Curacao (Mac) | 6,9 | medido el 2-oct: 135 páginas a 2,5 s |
+| RadioShack (Mac) | 3,0 | medido el 2-oct: 54 páginas |
+| **Mac, 3 tiendas** | **~26–35** | |
 
 ### Post-proceso
 
@@ -102,7 +121,7 @@ matching quedan en caché:
 | Detector | ~3 min | igual que el medido |
 | **Total post** | **12–20 min** | |
 
-**Corrida diaria completa en Actions: ~85–90 min** (70 de ingesta + 12–20 de post), lejos del
+**Corrida diaria completa en Actions: ~75–80 min** (61 de ingesta + 12–20 de post), lejos del
 timeout de 300. Desde esta versión cada fase imprime `post <fase> <segundos>s` y el resumen
 de la corrida las muestra: la primera corrida normal reemplaza este estimado por la medición.
 
@@ -280,18 +299,19 @@ no, en producción esas cuatro tiendas aparecen como "catálogo no disponible".
 
 ## Job local (launchd)
 
-Corre las tiendas de `LOCAL_STORES` (`gt_compare/ingest/hosts.py`; hoy solo Kemik) contra
-Turso, con `scripts/ingest_local.sh`, que carga `~/.gt-compare/turso.env`
+Corre las tiendas de `LOCAL_STORES` (`gt_compare/ingest/hosts.py`: Kemik, La Curacao y
+RadioShack, ~35 min) contra Turso, con `scripts/ingest_local.sh`, que carga `~/.gt-compare/turso.env`
 (`set -a; source; set +a`) sin imprimirlo y se detiene si falta la URL o el token (sin ellos
 escribiría a la base local sin avisar). No hace post-proceso: lo corre Actions.
 
 - **Hora: 20:00 de Guatemala.** Según el registro de energía de la Mac (`pmset -g log`,
   23 al 28-sep), a esa hora estuvo despierta todos los días; de madrugada a veces duerme
-  (el 26-sep, de 01:45 a 11:52). Las 20:00 son las 02:00 UTC, así que los precios de Kemik
-  quedan en el mismo día UTC que el detector de Actions de las 09:00 UTC.
+  (el 26-sep, de 01:45 a 11:52). Las 20:00 son las 02:00 UTC, así que los precios de las
+  tres tiendas quedan en el mismo día UTC que el detector de Actions de las 09:00 UTC.
 - **Mac dormida:** launchd corre el trabajo al despertar. **Mac apagada:** ese día se pierde
-  y Kemik queda con el precio del día anterior; desde el tercer día sin corrida sus precios
-  salen de /ofertas y de los badges (regla de 2 días).
+  y las tres tiendas quedan con el precio del día anterior; desde el tercer día sin corrida
+  sus precios salen de /ofertas y de los badges (regla de 2 días) y la búsqueda muestra
+  "actualizado hace N días".
 - **Log:** `~/.gt-compare/ingest-local.log`.
 - **Escrituras:** el comando suma lo suyo a `db_usage` en Turso igual que Actions: el aviso
   del 80% cuenta los dos lados.
@@ -333,7 +353,8 @@ Con `main` actualizado (después de mergear), desde la carpeta del repo:
    - que la primera línea sea `=== <fecha> ingesta local` y no aparezca `falta` ni `aviso:
      ... permisos 600`;
    - que ninguna línea muestre la URL de la base ni el token;
-   - una línea `kemik ok ...` (o `partial`) con ~13–19 k SKUs y 0 o pocos errores;
+   - una línea por tienda: `kemik ok` (o `partial`) con ~13–19 k SKUs, y `curacao ok` y
+     `radioshack ok` con `cobertura` de 95% o más y 0 errores;
    - al final `Escrituras del mes ...` con un número mayor al de la corrida de Actions:
      eso confirma que escribió en Turso y no en la base local;
    - `python -m gt_compare.ingest status` con el mismo entorno muestra Kemik con la hora

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       stores:
-        description: "Tiendas separadas por espacio (vacío = las de Actions, sin las que van en la Mac)"
+        description: "Tiendas separadas por espacio (vacío = las de Actions; Kemik, La Curacao y RadioShack van en la Mac)"
         required: false
         default: ""
       solo_ingesta:
