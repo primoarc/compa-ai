@@ -159,6 +159,7 @@ deal_id = mem.query_one("SELECT id FROM deals WHERE product_id=?", (err,))["id"]
 client.post(f"/admin/aprobar/{deal_id}")
 check("aprobado", mem.query_one("SELECT status FROM deals WHERE id=?", (deal_id,))["status"], "approved")
 check("aprobado aparece en ofertas", "Refrigeradora LG" in client.get("/ofertas").text, True)
+check("panel lista las aprobadas con botón para quitar", f'action="/admin/rechazar/{deal_id}"' in client.get("/admin").text, True)
 
 check("oferta del día sin elegir", client.get("/oferta-del-dia").status_code, 200)
 client.post(f"/admin/dia/{deal_id}")

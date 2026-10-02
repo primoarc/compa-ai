@@ -685,6 +685,11 @@ async def admin(request: Request, error: str = "") -> Response:
         """SELECT d.*, p.name, p.store_key, p.url FROM deals d JOIN products p ON p.id=d.product_id
            WHERE d.status='pending' ORDER BY d.detected_on DESC, d.score DESC LIMIT 100"""
     )
+    approved = db.query(
+        """SELECT d.*, p.name, p.store_key, p.url FROM deals d JOIN products p ON p.id=d.product_id
+           WHERE d.status='approved' AND d.detected_on >= date('now', '-7 day')
+           ORDER BY d.detected_on DESC, d.score DESC LIMIT 100"""
+    )
     day = _feed_day(db) or today_utc()
     candidates = db.query(
         """SELECT d.*, p.name, p.store_key FROM deals d JOIN products p ON p.id=d.product_id
@@ -723,6 +728,13 @@ async def admin(request: Request, error: str = "") -> Response:
 <td class="small muted">{feats(d)}</td><td>{btn('aprobar', d['id'], 'Aprobar', 'green')} {btn('rechazar', d['id'], 'Rechazar')}</td></tr>"""
         for d in pending
     )
+    rows_approved = "".join(
+        f"""<tr><td><a href="{_e(d['url'])}" target="_blank" rel="noopener">{_e(d['name'])}</a><br>
+<span class="small muted">{_e(store_name(d['store_key']))} · {d['detected_on']} · {_e(d['kind'])}</span></td>
+<td>{_e(money(d['price']))}<br><span class="small muted">ref {_e(money(d['reference']))}</span></td>
+<td class="small muted">{feats(d)}</td><td>{btn('rechazar', d['id'], 'Quitar aprobación')}</td></tr>"""
+        for d in approved
+    )
     rows_cand = "".join(
         f"""<tr><td>{'<strong>Sugerida</strong> · ' if i == 0 else ''}{_e(d['name'])}<br><span class="small muted">{_e(store_name(d['store_key']))} · {_e(d['kind'])}</span></td>
 <td>{_e(money(d['price']))}</td><td>{d['score']}</td><td>{btn('dia', d['id'], 'Elegir para hoy', 'green')}</td></tr>"""
@@ -740,6 +752,8 @@ Envío de alertas: {'encendido' if os.getenv('ALERTS_SEND_ENABLED') == '1' else 
 Oferta del día actual: {_e(pick['name']) if pick else 'ninguna'}.</p>
 <h2>Posibles price errors por aprobar ({len(pending)})</h2>
 <table><tr><th>Producto</th><th>Precio</th><th>Score</th><th>Causa</th><th>Señales</th><th></th></tr>{rows_pending or '<tr><td colspan=6 class="muted">Nada pendiente.</td></tr>'}</table>
+<h2>Aprobadas, últimos 7 días ({len(approved)})</h2>
+<table><tr><th>Producto</th><th>Precio</th><th>Señales</th><th></th></tr>{rows_approved or '<tr><td colspan=4 class="muted">Ninguna.</td></tr>'}</table>
 <h2>Candidatas a oferta del día ({day})</h2>
 <table><tr><th>Producto</th><th>Precio</th><th>Score</th><th></th></tr>{rows_cand or '<tr><td colspan=4 class="muted">Sin candidatas.</td></tr>'}</table>
 <h2>Matches por revisar ({len(reviews)})</h2>
