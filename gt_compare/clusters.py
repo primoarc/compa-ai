@@ -6,6 +6,8 @@
    specs chocan (variante probable) la decide Jev, o va a revisión sin Jev.
 3. Solo los vínculos aceptados forman grupos. Los precios se comparan entre
    tiendas únicamente dentro de un grupo (confianza >= MATCH_ACCEPT).
+4. Un paquete ("impresora + laptop", "combo", "kit") contra un producto solo
+   nunca se une automáticamente, ni por EAN: va a revisión en el panel.
 """
 
 from __future__ import annotations
@@ -138,13 +140,26 @@ async def rebuild(db: Database, decider: Optional[Decider] = None) -> dict:
     for r in rows:
         if r["ean"]:
             by_ean[r["ean"]].append(r)
+    bundle_reviews: set[tuple[int, int]] = set()
+
+    def mismatch(a: dict, b: dict) -> bool:
+        return matching.bundle_mismatch(a["name"] or "", b["name"] or "")
+
     for group in by_ean.values():
         if len({r["store_key"] for r in group}) < 2:
             continue
-        for r in group[1:]:
-            uf.union(group[0]["id"], r["id"])
-        for r in group:
-            method[r["id"]] = ("ean", EAN_CONFIDENCE)
+        # Max vende "impresora + laptop" con el EAN de la laptop: paquetes y
+        # productos solos se unen por separado y el cruce va a revisión.
+        for part in ([r for r in group if matching.is_bundle(r["name"] or "")],
+                     [r for r in group if not matching.is_bundle(r["name"] or "")]):
+            for r in part[1:]:
+                uf.union(part[0]["id"], r["id"])
+            for r in part:
+                method[r["id"]] = ("ean", EAN_CONFIDENCE)
+        for i, a in enumerate(group):
+            for b in group[i + 1:]:
+                if a["store_key"] != b["store_key"] and mismatch(a, b):
+                    bundle_reviews.add((min(a["id"], b["id"]), max(a["id"], b["id"])))
 
     pairs = candidate_pairs(rows)
     rule_decs = [schemas.match_rules(schemas.match_state(_side(a), _side(b))) for a, b in pairs]
@@ -160,6 +175,9 @@ async def rebuild(db: Database, decider: Optional[Decider] = None) -> dict:
              "review": 0}
 
     for (a, b), dec in zip(pairs, rule_decs):
+        if mismatch(a, b):
+            bundle_reviews.add((min(a["id"], b["id"]), max(a["id"], b["id"])))
+            continue
         if dec.value == 2:
             uf.union(a["id"], b["id"])
             for r in (a, b):
@@ -175,7 +193,13 @@ async def rebuild(db: Database, decider: Optional[Decider] = None) -> dict:
             for x in (a_id, b_id):
                 method[x] = ("manual", 1.0)
 
-    reviews = []
+    # Paquete contra producto solo: a revisión sin pasar por Jev (lo decide el código).
+    for (a, b), _ in ambiguous:
+        if mismatch(a, b):
+            bundle_reviews.add((min(a["id"], b["id"]), max(a["id"], b["id"])))
+    ambiguous = [(p, d) for p, d in ambiguous if not mismatch(*p)]
+    stats["bundle_review"] = len(bundle_reviews)
+    reviews: list[tuple] = [(a, b, None, 1, "paquete") for a, b in sorted(bundle_reviews) if (a, b) not in manual]
     if ambiguous:
         if decider is not None and decider.enabled:
             states = [schemas.match_state(_side(a), _side(b)) for (a, b), _ in ambiguous]
@@ -256,14 +280,42 @@ async def rebuild(db: Database, decider: Optional[Decider] = None) -> dict:
     return stats
 
 
-def peers(db: Database, product_id: int, min_confidence: float = schemas.MATCH_ACCEPT) -> list[dict]:
-    """Mismo producto en otras tiendas, solo con vínculo de confianza alta."""
+def cheapest_peers(db: Database, product_ids: list[int], seen_since: str,
+                   min_confidence: float = schemas.MATCH_ACCEPT) -> dict[int, float]:
+    """Precio más bajo de otra tienda del grupo, con precio visto desde `seen_since`."""
+    out: dict[int, float] = {}
+    for i in range(0, len(product_ids), 500):
+        chunk = product_ids[i:i + 500]
+        for r in db.query(
+            f"""SELECT pc1.product_id AS pid, MIN(p.cur_price) AS cheapest
+                FROM product_clusters pc1
+                JOIN products own ON own.id = pc1.product_id
+                JOIN product_clusters pc2 ON pc2.cluster_id = pc1.cluster_id AND pc2.product_id != pc1.product_id
+                JOIN products p ON p.id = pc2.product_id AND p.store_key != own.store_key
+                WHERE pc1.product_id IN ({",".join("?" * len(chunk))})
+                  AND pc1.confidence >= ? AND pc2.confidence >= ? AND p.cur_price > 0
+                  AND EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id AND +h.end_day >= ?)
+                GROUP BY pc1.product_id""",
+            [*chunk, min_confidence, min_confidence, seen_since],
+        ):
+            out[r["pid"]] = float(r["cheapest"])
+    return out
+
+
+def peers(db: Database, product_id: int, min_confidence: float = schemas.MATCH_ACCEPT,
+          seen_since: str = "0000-00-00") -> list[dict]:
+    """Mismo producto en otras tiendas, solo con vínculo de confianza alta y
+    precio visto desde `seen_since`. Un grupo puede tener dos publicaciones de
+    la misma tienda (Max lista algunos productos dos veces): esas no son "otra tienda"."""
     return db.query(
         """SELECT p.id, p.store_key, p.name, p.url, p.cur_price, p.cur_available, pc2.confidence
            FROM product_clusters pc1
+           JOIN products own ON own.id = pc1.product_id
            JOIN product_clusters pc2 ON pc2.cluster_id = pc1.cluster_id AND pc2.product_id != pc1.product_id
-           JOIN products p ON p.id = pc2.product_id
+           JOIN products p ON p.id = pc2.product_id AND p.store_key != own.store_key
            WHERE pc1.product_id = ? AND pc1.confidence >= ? AND pc2.confidence >= ?
+             -- "+" evita el índice de end_day: se busca por producto, pocas filas
+             AND EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id AND +h.end_day >= ?)
            ORDER BY p.cur_price""",
-        (product_id, min_confidence, min_confidence),
+        (product_id, min_confidence, min_confidence, seen_since),
     )

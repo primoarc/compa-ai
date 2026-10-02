@@ -154,6 +154,25 @@ def screen_size(name: str) -> Optional[float]:
     return None
 
 
+# Paquete: "+" entre espacios seguido de una palabra ("IMPRESORA HP 210 + LAPTOP",
+# "colchón + base") o una de estas palabras. No cuentan: "+" pegado ("7+ Años",
+# "Active+", "S24+"), "+" seguido de números o specs ("4 +256GB", "8GB RAM + SSD"),
+# la marca Black + Decker ni "kit de construcción" (así nombra Kemik los LEGO).
+_SPEC_WORDS = r"ssd|hdd|ram|rom|emmc|nvme|wifi|wi-fi|bluetooth|usb|hdmi|gb|tb"
+_RE_BUNDLE = re.compile(
+    rf"\s\+\s+(?!(?:{_SPEC_WORDS})\b)[^\W\d_]{{3,}}|\b(?:combo|kit|bundle|paquete)s?\b", re.I)
+_RE_NOT_BUNDLE = re.compile(r"black\s*\+\s*decker|kit de construcci[oó]n", re.I)
+
+
+def is_bundle(name: str) -> bool:
+    return bool(_RE_BUNDLE.search(_RE_NOT_BUNDLE.sub(" ", name or "")))
+
+
+def bundle_mismatch(a: str, b: str) -> bool:
+    """Uno es paquete y el otro no: no son el mismo artículo a la venta."""
+    return is_bundle(a) != is_bundle(b)
+
+
 def _codes_overlap(a: set, b: set) -> Optional[str]:
     """Código compartido, aceptando que una tienda use el código extendido.
 

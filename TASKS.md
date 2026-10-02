@@ -75,7 +75,7 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Cobertura leídos/declarados en el resultado de cada tienda
 - [x] Flag de solo ingesta en workflow_dispatch
 - [x] Prueba en Actions de las dos tiendas y decisión por la regla del 95% (≤14% y ≤19%: falta la prueba desde la Mac)
-- [ ] Prueba desde la Mac contra Turso (la corre el dueño) y, si llega al 95%, pasarlas a LOCAL_STORES
+- [x] Prueba desde la Mac (99,9% y 99,9%) y paso de las dos a LOCAL_STORES
 - [x] Precios de más de 2 días fuera del detector, /ofertas, /oferta-del-dia y badges (con test de corrida parcial)
 - [x] "actualizado hace X" en resultados desde catálogo
 - [x] ubuntu-24.04 en los workflows
@@ -83,6 +83,18 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Job local de Kemik: hora según uso de la Mac, qué verificar en la primera corrida
 - [x] Exportar las 30 primeras de /ofertas para revisión manual
 - [x] PR listo con comandos, sin mergear
+
+## Ronda 4 (feed antes de compartir, 2-oct)
+- [x] Cobertura: quitar la plantilla de comparar, categorías sin total, fórmula y tabla en el doc
+- [x] La Curacao y RadioShack a LOCAL_STORES (test de 10 + 3)
+- [x] Historial mínimo de 7 días; "más barato que en X" aparte y nunca oferta del día
+- [x] Paquete de un solo lado: a revisión en grupos, validación y detector (caso HP)
+- [x] Sin repetidos en /ofertas (grupo o misma tienda con el mismo nombre)
+- [x] Ficha sin la misma tienda en "En otras tiendas"
+- [x] Origen de la aprobación del HP y lista de pares paquete contra simple
+- [x] Ofertas que ya no se sostienen el mismo día: withdrawn
+- [x] Una tienda que falla al escribir no frena la corrida
+- [x] Export de las 30 primeras con las reglas nuevas (simulado, sin escribir)
 
 ## Cierre
 - [x] Chequeo de tipos (pyright, todo el paquete) y 14 suites en verde

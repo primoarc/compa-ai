@@ -56,10 +56,23 @@ gradual = [iv(-60, -21, 1000.0), iv(-20, -11, 800.0), iv(-10, -1, 600.0), iv(0, 
 v = verdict(gradual, 450.0)
 check("caída gradual grande no es price error", v.kind, "oferta_fuerte")
 
-# Sin historial pero otras tiendas lo confirman
+# Sin historial propio: otras tiendas más caras no hacen "oferta" ni price error,
+# solo "más barato que en X" contra la más barata de ellas.
 v = verdict([iv(0, 0, 400.0)], 400.0, peers=[1000.0, 1050.0])
-check("sin historial, confirmado por otras tiendas", (v.kind, v.reference_kind),
-      ("posible_error", "otras_tiendas"))
+check("sin historial: más barato, no posible error", (v.kind, v.reference, v.reference_kind),
+      ("mas_barato", 1000.0, "otras_tiendas"))
+# Los colchones de Max: un día de historial, 43% bajo Walmart.
+v = verdict([iv(-1, -1, 3524.0), iv(0, 0, 3524.0)], 3524.0, peers=[6190.0])
+check("un día de historial contra otra tienda: más barato", v.kind, "mas_barato")
+# 6 días no alcanzan; 7 sí.
+six = [iv(-6, -1, 5000.0), iv(0, 0, 3000.0)]
+check("6 días de historial: sin oferta", verdict(six, 3000.0, peers=[5000.0]).kind, "mas_barato")
+seven = [iv(-7, -1, 5000.0), iv(0, 0, 3000.0)]
+check("7 días de historial: oferta fuerte", verdict(seven, 3000.0).kind, "oferta_fuerte")
+# Poco historial, sin precio anterior ni otras tiendas: nada.
+check("solo hoy y sin otras tiendas: nada", verdict([iv(0, 0, 300.0)], 300.0).kind, None)
+# Diferencia chica con otra tienda: nada.
+check("menos de 15% bajo otra tienda: nada", verdict([iv(0, 0, 900.0)], 900.0, peers=[1000.0]).kind, None)
 
 # El ahorro en quetzales ordena: mismo %, más ahorro, más arriba
 tv_like = verdict([iv(-60, -1, 10000.0), iv(0, 0, 7000.0)], 7000.0)
@@ -82,10 +95,13 @@ always = [iv(-60, -1, 1000.0, 1600.0), iv(0, 0, 1000.0, 1600.0)]
 v = verdict(always, 1000.0, list_price=1600.0)
 check("precio de lista alto de siempre: nada", v.kind, None)
 
-# Historial muy corto y sin otras tiendas: no se puede decir nada
+# Historial corto: un posible error solo se mide contra su precio anterior.
 short = [iv(-3, -1, 1000.0), iv(0, 0, 300.0)]
 v = verdict(short, 300.0)
-check("menos de 7 días de historial: nada", v.kind, None)
+check("historial corto con caída de 70% contra el precio anterior: posible error",
+      (v.kind, v.reference, v.reference_kind), ("posible_error", 1000.0, "anterior"))
+v = verdict([iv(-3, -1, 1000.0), iv(0, 0, 700.0)], 700.0)
+check("historial corto con caída de 30%: nada", v.kind, None)
 
 # Días agotado no cuentan para la mediana
 oos = [iv(-60, -31, 1000.0), iv(-30, -1, 3000.0, available=0), iv(0, 0, 820.0)]
@@ -163,12 +179,98 @@ async def ean_validation():
     link(bad_a, bad_b)
     out = await detector.run(mem, TODAY)
     kinds = {r["product_id"]: r["kind"] for r in mem.query("SELECT product_id, kind FROM deals")}
-    check("par consistente sostiene el posible error", kinds.get(ok_a), "posible_error")
+    # Sin historial propio, el par validado solo sostiene "más barato que en X".
+    check("par consistente sostiene más barato", kinds.get(ok_a), "mas_barato")
     check("par contradictorio (otra marca) no sostiene nada", kinds.get(bad_a), None)
     check("se cuenta la baja de clase", out["peer_rejected_downgrades"], 1)
+    peer = mem.query_one("SELECT features FROM deals WHERE product_id=?", (ok_a,))["features"]
+    check("nombra la tienda más cara", '"peer_store": "walmart"' in peer, True)
+
+    # Otra tienda del grupo más barata, aunque su par no se valide: no es "más barato".
+    cheap = seed("max", "9", "Licuadora Ninja Professional 1000W", 1400.0)
+    mem.execute("INSERT INTO product_clusters (product_id, cluster_id, method, confidence, decided_at) "
+                "SELECT ?, cluster_id, 'ean', 0.92, ? FROM product_clusters WHERE product_id=?", (cheap, TODAY, ok_a))
+    await detector.run(mem, TODAY)
+    check("si otra tienda del grupo es más barata, no se publica",
+          mem.query_one("SELECT status FROM deals WHERE product_id=?", (ok_a,))["status"], "withdrawn")
 
 
 asyncio.run(ean_validation())
+
+
+# --- caso HP: paquete con el EAN de la laptop sola -----------------------------
+async def bundle_case():
+    mem = dbmod.open_db(":memory:")
+
+    def seed(store, sku, name, price, days):
+        rec = ProductRecord(store, sku, f"https://x/{store}/{sku}", name, price, ean="0821844146996")
+        pid = upsert_products(mem, [rec], TODAY)[sku]
+        for off in range(-days, 1):
+            apply_observations(mem, d(off), [Observation(pid, price, None, 1)], None)
+        return pid
+
+    laptop = seed("walmart", "1", "Hp 15 R5 8gb 512gb 15fc0353la", 4945.0, 30)
+    combo = seed("max", "2", "IMPRESORA HP 210 + LAPTOP HP 15-FC0353LA", 10590.0, 30)
+    from gt_compare import clusters  # noqa: E402
+    out = await clusters.rebuild(mem)
+    check("paquete y laptop sola no quedan en el mismo grupo",
+          mem.query("SELECT product_id FROM product_clusters"), [])
+    check("el par va a revisión como paquete",
+          [(r["product_a"], r["product_b"], r["source"]) for r in mem.query("SELECT * FROM match_reviews")],
+          [(min(laptop, combo), max(laptop, combo), "paquete")])
+    check("se cuenta", out["bundle_review"], 1)
+    ok = await detector._validate_peers([({"name": "Hp 15 R5 8gb 512gb 15fc0353la"},
+                                          {"name": "IMPRESORA HP 210 + LAPTOP HP 15-FC0353LA"})], None)
+    check("la validación de pares rechaza paquete contra laptop", ok, [False])
+
+
+asyncio.run(bundle_case())
+
+from gt_compare.matching import is_bundle  # noqa: E402
+
+check("qué es paquete", [is_bundle(n) for n in (
+    "IMPRESORA HP 210 + LAPTOP HP 15-FC0353LA", "Kit Bocina Luna 2 y Audífonos", "Paquete 6 baterías CR2032",
+    "Combo laptop y mouse", "Honor x6e, 4 +256GB", "Juego de Mesa Simon para 8+ Años",
+    "Licuadora Black + Decker Ice Crush", "LEGO Speed Champions Ferrari F40 - Kit de Construcción",
+    "8GB RAM + SSD 512", "Acondicionador Active+ Keratin")],
+    [True, True, True, True, False, False, False, False, False, False])
+
+
+# --- una oferta que ya no se sostiene en la misma fecha se retira ----------------
+async def withdrawn():
+    mem = dbmod.open_db(":memory:")
+    rec = ProductRecord("siman", "1", "https://x/1", "Televisor Samsung 65", 500.0)
+    pid = upsert_products(mem, [rec], TODAY)[rec.store_sku]
+    for off in range(-40, 0):
+        apply_observations(mem, d(off), [Observation(pid, 2000.0, None, 1)], None)
+    apply_observations(mem, TODAY, [Observation(pid, 500.0, None, 1)], None)
+    await detector.run(mem, TODAY)
+    mem.execute("UPDATE deals SET status='approved' WHERE product_id=?", (pid,))
+    # La tienda corrige el precio y el detector vuelve a correr el mismo día.
+    apply_observations(mem, TODAY, [Observation(pid, 2000.0, None, 1)], None)
+    mem.execute("UPDATE products SET cur_price=2000 WHERE id=?", (pid,))
+    out = await detector.run(mem, TODAY)
+    check("aprobada que ya no se sostiene: retirada",
+          (mem.query_one("SELECT status FROM deals WHERE product_id=?", (pid,))["status"], out["retiradas"]),
+          ("withdrawn", 1))
+
+
+asyncio.run(withdrawn())
+
+
+async def dry():
+    mem = dbmod.open_db(":memory:")
+    rec = ProductRecord("siman", "1", "https://x/1", "Licuadora Oster", 700.0)
+    pid = upsert_products(mem, [rec], TODAY)[rec.store_sku]
+    for off in range(-40, 0):
+        apply_observations(mem, d(off), [Observation(pid, 1000.0, None, 1)], None)
+    apply_observations(mem, TODAY, [Observation(pid, 700.0, None, 1)], None)
+    out = await detector.run(mem, TODAY, dry_run=True)
+    check("simulación: devuelve la oferta sin escribirla",
+          ([r["kind"] for r in out["filas"]], mem.query("SELECT * FROM deals")), (["oferta_fuerte"], []))
+
+
+asyncio.run(dry())
 
 # --- qué se marca como visto todos los días ------------------------------------
 from gt_compare.ingest.runner import daily_marked  # noqa: E402

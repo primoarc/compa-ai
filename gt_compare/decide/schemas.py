@@ -110,6 +110,8 @@ def ean_pair_rules(state: dict) -> Decision:
     xa, xb = matching.model_codes(a), matching.model_codes(b)
     if xa and xb and not matching._codes_overlap(xa, xb):
         conflicts.append("modelo")
+    if matching.bundle_mismatch(a, b):
+        conflicts.append("paquete")
     return Decision(0 if conflicts else 2, None, source="rules", answers={"conflicts": conflicts})
 
 
