@@ -119,6 +119,13 @@ def _tiles(html: str) -> list[str]:
     return [html[a:b] for a, b in zip(starts, starts[1:] + [end if end > 0 else len(html)])]
 
 
+def _product_tiles(html: str) -> int:
+    """Fichas con enlace a un producto. Deja fuera la plantilla vacía de
+    "Comparar productos" (<ol id="compare-items">), que Unicomer repite en cada
+    página y que contaba como una ficha sin precio más por página."""
+    return sum(1 for t in _tiles(html) if _RE_LINK.search(t))
+
+
 def parse_listing(store: Store, html: str, category: Optional[str] = None) -> list[ProductRecord]:
     """Registros de un listado Magento (categoría o búsqueda)."""
     out: list[ProductRecord] = []
@@ -235,9 +242,10 @@ async def enumerate_magento(
     done = 0
     declared = 0
     no_total = 0      # categorías cuya primera página falló: su total no se sabe
-    # Leídos contra declarados: cada categoría declara su total contando los
-    # productos que también están en otras, así que se compara contra lo listado
-    # por categoría (con repetidos) más las fichas sin precio, no contra únicos.
+    # Cobertura = listados / declarados, solo sobre categorías que declararon total.
+    # Cada categoría declara su total contando productos que también están en
+    # otras, así que "listados" son las fichas de producto de cada categoría (con
+    # repetidos entre categorías, con o sin precio), no los productos únicos.
     listed = 0
     failed: list[str] = []
     mode = "categorías del menú"
@@ -261,7 +269,9 @@ async def enumerate_magento(
         if declared:
             parts.append(f"{listed:,} listados de {declared:,} declarados, cobertura {listed / declared:.1%}")
         if no_total:
-            parts.append(f"{no_total} categorías sin total (la cobertura real es menor)")
+            # Su primera página falló: no se sabe cuántos tienen. No suman a
+            # listados ni a declarados, y la corrida no puede afirmar el 95%.
+            parts.append(f"{no_total} categorías sin total declarado: cobertura no comprobable")
         if failed:
             parts.append(f"{len(failed)} categorías incompletas por errores: {', '.join(failed[:8])}")
         stats.coverage_note = "; ".join(parts)
@@ -302,7 +312,7 @@ async def enumerate_magento(
                 fresh = [r for r in recs if r.store_sku not in cat_ids]
                 if not fresh:
                     break
-                listed += len(fresh) + max(0, len(_tiles(html)) - len(recs))
+                listed += len(fresh) + max(0, _product_tiles(html) - len(recs))
                 for rec in fresh:
                     cat_ids.add(rec.store_sku)
                     if rec.store_sku in seen:

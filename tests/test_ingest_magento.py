@@ -198,9 +198,42 @@ check("sin cabecera server se dice así", any("server=(sin cabecera) (cuerpo vac
 check("cobertura sobre lo declarado", "cobertura" in stats.coverage_note, True)
 VIDEO_P1 = "https://www.lacuracaonline.com/guatemala/c/video"
 _, stats, _, _ = crawl_406(CURACAO, {VIDEO_P1: 2})
-check("categoría sin total se avisa", "1 categorías sin total" in stats.coverage_note, True)
+check("categoría sin total se avisa", "1 categorías sin total declarado: cobertura no comprobable" in stats.coverage_note, True)
 _, stats, pauses, _ = crawl_406(EPA, {"https://gt.epaenlinea.com/": 1})
 check("otras tiendas no reintentan el 406", pauses, [])
+
+# --- cobertura: la plantilla de "Comparar productos" no es una ficha ----------------
+from gt_compare.ingest.magento import _product_tiles  # noqa: E402
+
+COMPARE = ('<ol id="compare-items" class="product-items product-items-names"><li class="product-item">'
+           '<strong class="product-item-name"><a data-bind="attr: {href: product_url}" class="product-item-link">'
+           '</a></strong></li></ol>')
+UNPRICED = ('<li class="item product product-item"><a class="product-item-link" href="/x/sin-precio">'
+            'Sin precio</a></li>')
+page = COMPARE + PAGE1.replace("</ol>", UNPRICED + "</ol>", 1)
+check("fichas: 2 con precio + 1 sin precio, sin la plantilla de comparar",
+      (_product_tiles(page), len(parse_listing(CURACAO, page))), (3, 2))
+
+
+def crawl_one(html):
+    def handler(request):
+        if request.url.path == "/guatemala/":
+            return httpx.Response(200, text='<a href="https://www.lacuracaonline.com/guatemala/c/audio">A</a>')
+        return httpx.Response(200, text="<ol></ol>" if "p=2" in str(request.url) else html)
+
+    async def run():
+        stats = EnumerationStats()
+        async with PoliteClient("curacao", min_interval=0, transport=httpx.MockTransport(handler)) as client:
+            _ = [r async for r in enumerate_magento(CURACAO, client, stats)]
+        return stats
+
+    return asyncio.run(run())
+
+
+declares_3 = page.replace("1,200", "3").replace("1200", "3")
+stats = crawl_one(COMPARE + declares_3)
+check("catálogo completo con plantilla de comparar: 100%, no más",
+      "3 listados de 3 declarados, cobertura 100.0%" in stats.coverage_note, True)
 
 if failures:
     print(f"\n{len(failures)} FALLA(S):\n")
