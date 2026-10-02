@@ -23,6 +23,20 @@ EXTEND_EVERY = 2
 URL_SKU_PREFIX = "url:"
 
 
+# Un precio visto hace más de FRESH_DAYS días no se muestra como oferta ni lleva
+# badge: una corrida parcial deja productos sin refrescar y su precio puede ya
+# no existir.
+FRESH_DAYS = 2
+
+
+def fresh_since(day: str) -> str:
+    """Último día aceptable para el end_day de un precio que se muestra como
+    vigente. end_day nunca es posterior al último avistamiento, así que el
+    corte nunca deja pasar un precio más viejo (puede dejar fuera alguno de
+    justo 2 días cuyo intervalo no se extendió)."""
+    return (_d(day) - timedelta(days=FRESH_DAYS)).isoformat()
+
+
 def seen_since(day: str) -> str:
     """Primer día que cuenta como "visto hoy": con marcado cada EXTEND_EVERY días,
     un producto sin cambios puede tener su intervalo cerrado hasta ayer."""

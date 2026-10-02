@@ -135,6 +135,106 @@ OTRA = Store("otra", "Otra", "www.otra.test", kind="magento", search_path="/cata
 _, requested = crawl(OTRA)
 check("otras tiendas sí paginan", any("?p=2" in u for u in requested), True)
 
+# --- La Curacao: 406 intermitente, un reintento y seguir con la siguiente ---------
+import logging  # noqa: E402
+
+CURACAO_HOME = ('<a href="https://www.lacuracaonline.com/guatemala/c/audio">A</a>'
+                '<a href="https://www.lacuracaonline.com/guatemala/c/video">V</a>')
+PAGE1 = (FIX / "curacao_listing.html").read_text()
+
+
+def crawl_406(store, fails):
+    """`fails`: {url: cuántas veces responde 406 antes de dar 200}."""
+    pauses, log = [], []
+    left = dict(fails)
+
+    def handler(request):
+        url = str(request.url)
+        if left.get(url, 0) > 0:
+            left[url] -= 1
+            return httpx.Response(406, headers={"x-demo": "1", "set-cookie": "sesion=abc"})
+        if request.url.path == "/guatemala/":
+            return httpx.Response(200, text=CURACAO_HOME)
+        if "p=2" in url:
+            return httpx.Response(200, text="<ol></ol>")
+        return httpx.Response(200, text=PAGE1)
+
+    class Grab(logging.Handler):
+        def emit(self, record):
+            log.append(record.getMessage())
+
+    async def fake_sleep(sec):
+        pauses.append(sec)
+
+    async def run():
+        stats = EnumerationStats()
+        client = PoliteClient(store.key, min_interval=0, transport=httpx.MockTransport(handler),
+                              sleep=fake_sleep)
+        async with client:
+            recs = [r async for r in enumerate_magento(store, client, stats)]
+        return recs, stats
+
+    grab = Grab()
+    logging.getLogger("gt_compare.ingest").addHandler(grab)
+    try:
+        recs, stats = asyncio.run(run())
+    finally:
+        logging.getLogger("gt_compare.ingest").removeHandler(grab)
+    return recs, stats, pauses, log
+
+
+AUDIO_P2 = "https://www.lacuracaonline.com/guatemala/c/audio?p=2"
+_, stats, pauses, log = crawl_406(CURACAO, {AUDIO_P2: 1})
+check("406 que se recupera: pausa de 20 s y sin parcial", (pauses, stats.partial), ([20.0], False))
+_, stats, pauses, log = crawl_406(CURACAO, {AUDIO_P2: 2})
+check("406 que persiste: sigue con la otra categoría y queda parcial",
+      (pauses, stats.partial, "2 de 2" in stats.coverage_note, "incompletas por errores" in stats.coverage_note),
+      ([20.0], True, True, True))
+detail = [m for m in log if "primer 406" in m]
+check("primer 406 con todas las cabeceras, cookies tapadas",
+      (len(detail), "'x-demo': '1'" in detail[0], "abc" in detail[0], "(omitida)" in detail[0]),
+      (1, True, False, True))
+check("sin cabecera server se dice así", any("server=(sin cabecera) (cuerpo vacío)" in m for m in log), True)
+check("cobertura sobre lo declarado", "cobertura" in stats.coverage_note, True)
+VIDEO_P1 = "https://www.lacuracaonline.com/guatemala/c/video"
+_, stats, _, _ = crawl_406(CURACAO, {VIDEO_P1: 2})
+check("categoría sin total se avisa", "1 categorías sin total declarado: cobertura no comprobable" in stats.coverage_note, True)
+_, stats, pauses, _ = crawl_406(EPA, {"https://gt.epaenlinea.com/": 1})
+check("otras tiendas no reintentan el 406", pauses, [])
+
+# --- cobertura: la plantilla de "Comparar productos" no es una ficha ----------------
+from gt_compare.ingest.magento import _product_tiles  # noqa: E402
+
+COMPARE = ('<ol id="compare-items" class="product-items product-items-names"><li class="product-item">'
+           '<strong class="product-item-name"><a data-bind="attr: {href: product_url}" class="product-item-link">'
+           '</a></strong></li></ol>')
+UNPRICED = ('<li class="item product product-item"><a class="product-item-link" href="/x/sin-precio">'
+            'Sin precio</a></li>')
+page = COMPARE + PAGE1.replace("</ol>", UNPRICED + "</ol>", 1)
+check("fichas: 2 con precio + 1 sin precio, sin la plantilla de comparar",
+      (_product_tiles(page), len(parse_listing(CURACAO, page))), (3, 2))
+
+
+def crawl_one(html):
+    def handler(request):
+        if request.url.path == "/guatemala/":
+            return httpx.Response(200, text='<a href="https://www.lacuracaonline.com/guatemala/c/audio">A</a>')
+        return httpx.Response(200, text="<ol></ol>" if "p=2" in str(request.url) else html)
+
+    async def run():
+        stats = EnumerationStats()
+        async with PoliteClient("curacao", min_interval=0, transport=httpx.MockTransport(handler)) as client:
+            _ = [r async for r in enumerate_magento(CURACAO, client, stats)]
+        return stats
+
+    return asyncio.run(run())
+
+
+declares_3 = page.replace("1,200", "3").replace("1200", "3")
+stats = crawl_one(COMPARE + declares_3)
+check("catálogo completo con plantilla de comparar: 100%, no más",
+      "3 listados de 3 declarados, cobertura 100.0%" in stats.coverage_note, True)
+
 if failures:
     print(f"\n{len(failures)} FALLA(S):\n")
     for f in failures:

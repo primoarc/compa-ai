@@ -25,8 +25,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from . import clusters
 from .db import Database, get_db
 from .decide import schemas as dschemas, taxonomy
-from .history import series, today_utc, window_stats
+from .history import fresh_since, series, today_utc, window_stats
 from .images import thumb
+from .relevance import normalize
 from .stores import load_stores
 
 router = APIRouter()
@@ -38,6 +39,9 @@ PAGE_CACHE = "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400"
 FEED_CACHE = "public, max-age=0, s-maxage=60, stale-while-revalidate=60"
 OG_CACHE = "public, max-age=3600, s-maxage=86400"
 FEED_KINDS = ("oferta", "oferta_fuerte", "posible_error")
+# Menos de 7 días de historial propio: "más barato que en X", en su propia
+# sección, nunca como oferta ni como oferta del día.
+CHEAPER_KINDS = ("mas_barato",)
 FEED_STATUSES = ("published", "approved")
 BADGE_MIN_DAYS = 14
 BADGE_GOOD_MARGIN = 0.05
@@ -265,9 +269,19 @@ def _latest_deal(db: Database, pid: int) -> Optional[dict]:
     marks = ",".join("?" * len(FEED_STATUSES))
     return db.query_one(
         f"""SELECT * FROM deals WHERE product_id=? AND status IN ({marks})
-            AND detected_on >= date('now','-2 day') ORDER BY detected_on DESC LIMIT 1""",
-        (pid, *FEED_STATUSES),
+            AND detected_on >= ? ORDER BY detected_on DESC LIMIT 1""",
+        (pid, *FEED_STATUSES, fresh_since(today_utc())),
     )
+
+
+# Precio visto en los últimos FRESH_DAYS días. "+" evita el índice de end_day:
+# se busca por producto, pocas filas.
+FRESH_SQL = """EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = {col}
+                       AND +h.end_day >= ?)"""
+
+
+def _is_fresh(hist: list[dict], today: str) -> bool:
+    return bool(hist) and max(r["end_day"] for r in hist) >= fresh_since(today)
 
 
 def _feed_day(db: Database) -> Optional[str]:
@@ -275,15 +289,30 @@ def _feed_day(db: Database) -> Optional[str]:
     return row["d"] if row else None
 
 
-def feed(db: Database, *, category: str = "", store: str = "", limit: int = 60) -> list[dict]:
+def _same_item_keys(d: dict) -> set:
+    """El mismo producto: mismo grupo entre tiendas, o misma tienda con el mismo
+    nombre (Max publica algunos productos dos veces con SKUs distintos)."""
+    keys: set[tuple] = {("nombre", d["store_key"], " ".join(normalize(d["name"] or "").split()))}
+    if d.get("cluster_id"):
+        keys.add(("grupo", d["cluster_id"]))
+    return keys
+
+
+def feed(db: Database, *, category: str = "", store: str = "", limit: int = 60,
+         kinds: tuple = FEED_KINDS, shown: Optional[set] = None) -> list[dict]:
+    """Ofertas vigentes de la última detección, mejor puntaje primero, sin
+    repetir el mismo producto. `shown` acumula lo ya mostrado entre secciones."""
     day = _feed_day(db)
-    if not day:
-        return []
-    sql = [f"""SELECT d.*, p.name, p.store_key, p.url, p.image, p.category_id, p.cur_price
+    since = fresh_since(today_utc())
+    if not day or day < since:
+        return []  # el detector no corrió en días: ninguna oferta es vigente
+    sql = [f"""SELECT d.*, p.name, p.store_key, p.url, p.image, p.category_id, p.cur_price, pc.cluster_id
                FROM deals d JOIN products p ON p.id = d.product_id
-               WHERE d.detected_on = ? AND d.kind IN ({",".join("?" * len(FEED_KINDS))})
-               AND d.status IN ({",".join("?" * len(FEED_STATUSES))})"""]
-    args: list = [day, *FEED_KINDS, *FEED_STATUSES]
+               LEFT JOIN product_clusters pc ON pc.product_id = d.product_id AND pc.confidence >= ?
+               WHERE d.detected_on = ? AND d.kind IN ({",".join("?" * len(kinds))})
+               AND d.status IN ({",".join("?" * len(FEED_STATUSES))})
+               AND {FRESH_SQL.format(col="d.product_id")}"""]
+    args: list = [dschemas.MATCH_ACCEPT, day, *kinds, *FEED_STATUSES, since]
     # Un price error solo sale si alguien lo aprobó en el panel.
     sql.append("AND (d.kind != 'posible_error' OR d.status = 'approved')")
     if category:
@@ -293,8 +322,34 @@ def feed(db: Database, *, category: str = "", store: str = "", limit: int = 60) 
         sql.append("AND p.store_key = ?")
         args.append(store)
     sql.append("ORDER BY d.score DESC LIMIT ?")
-    args.append(limit)
-    return db.query(" ".join(sql), args)
+    args.append(limit * 3)  # holgura para los repetidos que se quitan
+    shown = set() if shown is None else shown
+    out = []
+    for d in db.query(" ".join(sql), args):
+        keys = _same_item_keys(d)
+        if keys & shown:
+            continue
+        shown |= keys
+        out.append(d)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _features(deal: Optional[dict]) -> dict:
+    try:
+        return json.loads((deal or {}).get("features") or "{}")
+    except ValueError:
+        return {}
+
+
+def _ref_label(deal: Optional[dict], short: bool = False) -> str:
+    """Contra qué se compara: "Normal", "Antes", "En otras tiendas" o "Más barato que en X"."""
+    if deal and deal.get("kind") == "mas_barato":
+        return f"Más barato que en {store_name(_features(deal).get('peer_store', ''))}"
+    kind = _features(deal).get("reference_kind")
+    label = {"otras_tiendas": "En otras tiendas", "anterior": "Antes"}.get(kind or "", "Normal")
+    return label.lower() if short else label
 
 
 def _vs_stores(deal: Optional[dict]) -> bool:
@@ -320,11 +375,14 @@ def _deal_row(d: dict) -> str:
     vs_stores = _vs_stores(d)
     if d["kind"] == "posible_error":
         tag = "Posible error de precio"
+    elif d["kind"] == "mas_barato":
+        tag = _ref_label(d)
     elif pct:
         tag = f"{pct}% menos que otras tiendas" if vs_stores else f"{pct}% bajo lo normal"
     else:
         tag = ""
-    ref_label = "en otras tiendas" if vs_stores else "normal"
+    ref_label = ("en " + store_name(_features(d).get("peer_store", ""))) if d["kind"] == "mas_barato" \
+        else _ref_label(d, short=True)
     return (f'<a class="row" href="/p/{d["product_id"]}">{img}<div><div class="n">{_e(d["name"])}</div>'
             f'<div class="s">{_e(store_name(d["store_key"]))} · {ref_label} {_e(money(d["reference"]))}</div></div>'
             f'<div class="p">{_e(money(d["price"]))}<span class="d{" err" if d["kind"] == "posible_error" else ""}">{_e(tag)}</span></div></a>')
@@ -338,14 +396,16 @@ async def product_page(pid: int) -> HTMLResponse:
     today = today_utc()
     hist = series(db, pid, (date.fromisoformat(today) - timedelta(days=95)).isoformat())
     price = float(p["cur_price"] or 0)
-    badge = price_badge(hist, price, today)
-    deal = _latest_deal(db, pid)
+    fresh = _is_fresh(hist, today)
+    # Sin avistamiento reciente no se opina del precio: puede ya no existir.
+    badge = price_badge(hist, price, today) if fresh else None
+    deal = _latest_deal(db, pid) if fresh else None
     s30 = window_stats(hist, today, 30, exclude_today=True)
-    reference = deal["reference"] if deal else s30.median
+    reference = deal["reference"] if deal else (s30.median if fresh else None)
     pct = _pct(price, reference)
     store = store_name(p["store_key"])
     canonical = f"{SITE_URL}/p/{pid}"
-    others = clusters.peers(db, pid)
+    others = clusters.peers(db, pid, seen_since=fresh_since(today))
     rows = "".join(
         f'<a class="row" href="/p/{o["id"]}"><span></span><div><div class="n">{_e(store_name(o["store_key"]))}</div>'
         f'<div class="s">{_e(o["name"])}</div></div><div class="p">{_e(money(o["cur_price"]))}</div></a>'
@@ -353,10 +413,13 @@ async def product_page(pid: int) -> HTMLResponse:
     )
     was = ""
     if pct and pct >= 5:
-        label = "En otras tiendas" if _vs_stores(deal) else "Normal"
+        label = _ref_label(deal)
         was = f'<div class="was">{label} <s>{_e(money(reference))}</s> · {pct}% menos</div>'
-    elif p["cur_list_price"] and p["cur_list_price"] > price:
+    elif fresh and p["cur_list_price"] and p["cur_list_price"] > price:
         was = f'<div class="was">La tienda dice que antes costaba {_e(money(p["cur_list_price"]))}</div>'
+    elif not fresh and hist:
+        seen = max(r["end_day"] for r in hist)
+        was = f'<div class="was">Último precio visto el {_e(seen)}; puede haber cambiado.</div>'
     badge_html = f'<span class="badge {badge[1]}">{_e(badge[0])}</span>' if badge else ""
     # Condición de pago: el precio grande siempre es el que vale con cualquier medio
     # de pago (el que se compara con otras tiendas); el de contado va aparte.
@@ -408,7 +471,9 @@ async def ofertas(categoria: str = "", tienda: str = "") -> HTMLResponse:
     categoria = categoria if categoria in taxonomy.LEVEL1 else ""
     stores = {s.key: s.name for s in load_stores()}
     tienda = tienda if tienda in stores else ""
-    items = feed(db, category=categoria, store=tienda)
+    shown: set = set()
+    items = feed(db, category=categoria, store=tienda, shown=shown)
+    cheaper = feed(db, category=categoria, store=tienda, kinds=CHEAPER_KINDS, shown=shown, limit=30)
     cat_opts = "".join(f'<option value="{c}"{" selected" if c == categoria else ""}>{_e(taxonomy.LEVEL1_LABELS.get(c, c))}</option>'
                        for c in taxonomy.LEVEL1)
     store_opts = "".join(f'<option value="{k}"{" selected" if k == tienda else ""}>{_e(v)}</option>'
@@ -416,7 +481,8 @@ async def ofertas(categoria: str = "", tienda: str = "") -> HTMLResponse:
     body = f"""<h1>Ofertas de hoy</h1><p class="muted">Productos que hoy están por debajo de su propio precio normal, no del "precio antes" que muestra la tienda.</p>
 <form class="filters" method="get"><select name="categoria" aria-label="Categoría" onchange="this.form.submit()"><option value="">Todas las categorías</option>{cat_opts}</select>
 <select name="tienda" aria-label="Tienda" onchange="this.form.submit()"><option value="">Todas las tiendas</option>{store_opts}</select><noscript><button class="btn ghost">Filtrar</button></noscript></form>
-<div class="rows">{"".join(_deal_row(d) for d in items) or '<p class="muted">No hay ofertas con estos filtros hoy.</p>'}</div>"""
+<div class="rows">{"".join(_deal_row(d) for d in items) or '<p class="muted">No hay ofertas con estos filtros hoy.</p>'}</div>
+{('<h2>Más barato que en otra tienda</h2><p class="muted small">Productos con menos de una semana de historial en su tienda: todavía no sabemos si es su precio normal, pero hoy están por debajo de otra tienda.</p><div class="rows">' + "".join(_deal_row(d) for d in cheaper) + '</div>') if cheaper else ''}"""
     page = layout("Ofertas de hoy en Guatemala — Compa AI", body,
                   description="Ofertas reales detectadas hoy en tiendas de Guatemala, comparadas contra el historial de cada producto.",
                   canonical=f"{SITE_URL}/ofertas", og_image=f"{SITE_URL}/og-image.png", current="ofertas")
@@ -424,10 +490,15 @@ async def ofertas(categoria: str = "", tienda: str = "") -> HTMLResponse:
 
 
 def daily_deal(db: Database) -> Optional[dict]:
+    """La última elegida, si su oferta y su precio siguen vigentes."""
+    since = fresh_since(today_utc())
     return db.query_one(
-        """SELECT d.*, p.name, p.store_key, p.url, p.image, dp.day FROM daily_pick dp
-           JOIN deals d ON d.id = dp.deal_id JOIN products p ON p.id = d.product_id
-           ORDER BY dp.day DESC LIMIT 1"""
+        f"""SELECT d.*, p.name, p.store_key, p.url, p.image, dp.day FROM daily_pick dp
+            JOIN deals d ON d.id = dp.deal_id JOIN products p ON p.id = d.product_id
+            WHERE d.detected_on >= ? AND {FRESH_SQL.format(col="d.product_id")}
+              AND d.kind IN ({",".join("?" * len(FEED_KINDS))})
+            ORDER BY dp.day DESC LIMIT 1""",
+        (since, since, *FEED_KINDS),
     )
 
 
@@ -448,8 +519,10 @@ def _og_deal(db: Database, pid: int) -> dict:
     today = today_utc()
     hist = series(db, pid, (date.fromisoformat(today) - timedelta(days=35)).isoformat())
     price = float(p["cur_price"] or 0)
-    deal = _latest_deal(db, pid)
-    reference = deal["reference"] if deal else window_stats(hist, today, 30, exclude_today=True).median
+    fresh = _is_fresh(hist, today)
+    deal = _latest_deal(db, pid) if fresh else None
+    reference = deal["reference"] if deal else (
+        window_stats(hist, today, 30, exclude_today=True).median if fresh else None)
     pct = _pct(price, reference)
     points = []
     for i in range(30, 0, -1):
@@ -460,7 +533,17 @@ def _og_deal(db: Database, pid: int) -> dict:
                 break
     return {"name": p["name"], "store": store_name(p["store_key"]), "price": price,
             "reference": reference, "drop_pct": (pct or 0) / 100, "series": points,
-            "tag": None if pct and pct >= 5 else "Precio de hoy", "vs_stores": _vs_stores(deal)}
+            "tag": None if pct and pct >= 5 else ("Precio de hoy" if fresh else "Último precio visto"),
+            "vs_stores": _vs_stores(deal), **_og_labels(deal)}
+
+
+def _og_labels(deal: Optional[dict]) -> dict:
+    if deal and deal.get("kind") == "mas_barato":
+        store = store_name(_features(deal).get("peer_store", ""))
+        return {"against": f"menos que en {store}", "ref_label": f"En {store}"}
+    if _features(deal).get("reference_kind") == "anterior":
+        return {"against": "bajo su precio anterior", "ref_label": "Antes"}
+    return {}
 
 
 @router.get("/og/p/{name}")
@@ -602,6 +685,11 @@ async def admin(request: Request, error: str = "") -> Response:
         """SELECT d.*, p.name, p.store_key, p.url FROM deals d JOIN products p ON p.id=d.product_id
            WHERE d.status='pending' ORDER BY d.detected_on DESC, d.score DESC LIMIT 100"""
     )
+    approved = db.query(
+        """SELECT d.*, p.name, p.store_key, p.url FROM deals d JOIN products p ON p.id=d.product_id
+           WHERE d.status='approved' AND d.detected_on >= date('now', '-7 day')
+           ORDER BY d.detected_on DESC, d.score DESC LIMIT 100"""
+    )
     day = _feed_day(db) or today_utc()
     candidates = db.query(
         """SELECT d.*, p.name, p.store_key FROM deals d JOIN products p ON p.id=d.product_id
@@ -640,6 +728,13 @@ async def admin(request: Request, error: str = "") -> Response:
 <td class="small muted">{feats(d)}</td><td>{btn('aprobar', d['id'], 'Aprobar', 'green')} {btn('rechazar', d['id'], 'Rechazar')}</td></tr>"""
         for d in pending
     )
+    rows_approved = "".join(
+        f"""<tr><td><a href="{_e(d['url'])}" target="_blank" rel="noopener">{_e(d['name'])}</a><br>
+<span class="small muted">{_e(store_name(d['store_key']))} · {d['detected_on']} · {_e(d['kind'])}</span></td>
+<td>{_e(money(d['price']))}<br><span class="small muted">ref {_e(money(d['reference']))}</span></td>
+<td class="small muted">{feats(d)}</td><td>{btn('rechazar', d['id'], 'Quitar aprobación')}</td></tr>"""
+        for d in approved
+    )
     rows_cand = "".join(
         f"""<tr><td>{'<strong>Sugerida</strong> · ' if i == 0 else ''}{_e(d['name'])}<br><span class="small muted">{_e(store_name(d['store_key']))} · {_e(d['kind'])}</span></td>
 <td>{_e(money(d['price']))}</td><td>{d['score']}</td><td>{btn('dia', d['id'], 'Elegir para hoy', 'green')}</td></tr>"""
@@ -657,6 +752,8 @@ Envío de alertas: {'encendido' if os.getenv('ALERTS_SEND_ENABLED') == '1' else 
 Oferta del día actual: {_e(pick['name']) if pick else 'ninguna'}.</p>
 <h2>Posibles price errors por aprobar ({len(pending)})</h2>
 <table><tr><th>Producto</th><th>Precio</th><th>Score</th><th>Causa</th><th>Señales</th><th></th></tr>{rows_pending or '<tr><td colspan=6 class="muted">Nada pendiente.</td></tr>'}</table>
+<h2>Aprobadas, últimos 7 días ({len(approved)})</h2>
+<table><tr><th>Producto</th><th>Precio</th><th>Señales</th><th></th></tr>{rows_approved or '<tr><td colspan=4 class="muted">Ninguna.</td></tr>'}</table>
 <h2>Candidatas a oferta del día ({day})</h2>
 <table><tr><th>Producto</th><th>Precio</th><th>Score</th><th></th></tr>{rows_cand or '<tr><td colspan=4 class="muted">Sin candidatas.</td></tr>'}</table>
 <h2>Matches por revisar ({len(reviews)})</h2>
@@ -675,6 +772,9 @@ async def admin_action(request: Request, action: str, target: int) -> Response:
         db.execute("UPDATE deals SET status=?, reviewed_at=datetime('now'), note=? WHERE id=?",
                    ("approved" if action == "aprobar" else "rejected", note or None, target))
     elif action == "dia":
+        deal = db.query_one("SELECT kind FROM deals WHERE id=?", (target,))
+        if not deal or deal["kind"] not in FEED_KINDS:
+            raise HTTPException(400, "solo una oferta puede ser oferta del día")
         db.execute("INSERT OR REPLACE INTO daily_pick (day, deal_id, chosen_at) VALUES (?,?,datetime('now'))",
                    (today_utc(), target))
     elif action in ("match-si", "match-no"):

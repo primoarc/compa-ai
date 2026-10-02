@@ -159,11 +159,49 @@ deal_id = mem.query_one("SELECT id FROM deals WHERE product_id=?", (err,))["id"]
 client.post(f"/admin/aprobar/{deal_id}")
 check("aprobado", mem.query_one("SELECT status FROM deals WHERE id=?", (deal_id,))["status"], "approved")
 check("aprobado aparece en ofertas", "Refrigeradora LG" in client.get("/ofertas").text, True)
+check("panel lista las aprobadas con botón para quitar", f'action="/admin/rechazar/{deal_id}"' in client.get("/admin").text, True)
 
 check("oferta del día sin elegir", client.get("/oferta-del-dia").status_code, 200)
 client.post(f"/admin/dia/{deal_id}")
 r = client.get("/oferta-del-dia", follow_redirects=False)
 check("oferta del día redirige a la ficha", (r.status_code, r.headers["location"]), (302, f"/p/{err}"))
+
+# --- "más barato que en X": sección aparte, nunca oferta del día --------------------
+mb = seed("max", "5", "Set de cama Simmons queen", [], 3524.0)
+mb_dup = seed("max", "6", "Set de cama  Simmons queen", [], 3524.0)   # mismo producto, otro SKU
+deal_mb = mem.execute(
+    """INSERT INTO deals (product_id, detected_on, kind, score, price, reference, features, status)
+       VALUES (?,?,?,?,?,?,?,?)""",
+    (mb, TODAY, "mas_barato", 50.0, 3524.0, 6190.0,
+     '{"reference_kind": "otras_tiendas", "peer_store": "walmart"}', "published"))
+mem.execute("""INSERT INTO deals (product_id, detected_on, kind, score, price, reference, features, status)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (mb_dup, TODAY, "mas_barato", 49.0, 3524.0, 6190.0,
+             '{"reference_kind": "otras_tiendas", "peer_store": "walmart"}', "published"))
+r = client.get("/ofertas")
+main_list, _, cheaper_list = r.text.partition("Más barato que en otra tienda</h2>")
+check("más barato no está entre las ofertas", "Set de cama Simmons" in main_list, False)
+check("más barato en su sección, con la tienda", ("Set de cama Simmons" in cheaper_list,
+                                                  "Más barato que en Walmart" in cheaper_list), (True, True))
+check("mismo producto de la misma tienda una sola vez", cheaper_list.count("Set de cama"), 1)
+check("más barato no puede ser oferta del día", client.post(f"/admin/dia/{deal_mb}").status_code, 400)
+check("ficha de más barato", "Más barato que en Walmart Guatemala <s>Q6,190.00</s>" in client.get(f"/p/{mb}").text, True)
+
+# --- mismo grupo entre tiendas: una sola vez en /ofertas -------------------------
+twin = seed("cemaco", "7", "Televisor Samsung 55 UN55DU7000 (otra tienda)", [(o, 5000.0) for o in range(-40, 0)], 3000.0)
+mem.execute("""INSERT INTO deals (product_id, detected_on, kind, score, price, reference, features, status)
+               VALUES (?,?,?,?,?,?,?,?)""", (twin, TODAY, "oferta_fuerte", 39.0, 3000.0, 5000.0, "{}", "published"))
+cid = mem.execute("INSERT INTO clusters (ean, name) VALUES (NULL, 'tv')")
+same_store = seed("siman", "8", "Televisor Samsung 55 UN55DU7000 publicado dos veces", [], 3100.0)
+mem.executemany("INSERT INTO product_clusters (product_id, cluster_id, method, confidence, decided_at) VALUES (?,?,?,?,?)",
+                [(tv, cid, "jev", 0.99, TODAY), (twin, cid, "jev", 0.99, TODAY), (same_store, cid, "jev", 0.99, TODAY)])
+r = client.get("/ofertas")
+check("mismo grupo: solo la de mayor puntaje", ("Televisor Samsung 55 UN55DU7000</div>" in r.text,
+                                                 "(otra tienda)" in r.text), (True, False))
+r = client.get(f"/p/{tv}")
+others = r.text.partition("En otras tiendas</h2>")[2]
+check("ficha: la misma tienda no sale como otra tienda",
+      ("Cemaco" in others, "publicado dos veces" in others), (True, False))
 
 anon = TestClient(app)
 check("acción sin cookie", anon.post(f"/admin/rechazar/{deal_id}").status_code, 404)

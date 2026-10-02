@@ -239,6 +239,8 @@ def _prod_dict(p) -> dict:
         "list_price": getattr(p, "list_price", None),
         # Precio solo en efectivo (Intelaf); `price` es el que vale con tarjeta.
         "cash_price": getattr(p, "cash_price", None),
+        # Tiendas que responden desde el catálogo: cuándo se vio este precio.
+        "seen_age": getattr(p, "seen_age", None),
     }
 
 

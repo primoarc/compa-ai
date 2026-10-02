@@ -11,6 +11,10 @@ que vuelve a su precio normal después de un alza no cuenta como oferta.
 Clases: oferta (>=15%), oferta_fuerte (>=30%), posible_error (>=50% y caída
 súbita o confirmada por otras tiendas). Aparte, descuento_falso: el precio de
 lista subió >=20% en las dos semanas previas y el precio no bajó de lo normal.
+
+Con menos de MIN_HISTORY_DAYS días de historial propio no hay "oferta": solo
+mas_barato (>=15% bajo otra tienda, nunca oferta ni oferta del día) o
+posible_error si cayó >=50% contra su precio anterior.
 """
 
 from __future__ import annotations
@@ -23,10 +27,11 @@ from datetime import date, timedelta
 from statistics import median
 from typing import Optional
 
+from . import clusters, matching
 from .db import Database
 from .decide import Decider
 from .decide import schemas
-from .history import GAP_DAYS, previous_price, seen_since, window_stats
+from .history import GAP_DAYS, fresh_since, previous_price, seen_since, window_stats
 from .products import MAX_PLAUSIBLE_PRICE
 
 logger = logging.getLogger("gt_compare.detector")
@@ -54,6 +59,7 @@ class Features:
     peers_median: Optional[float]
     peers: int
     list_14d_ago: Optional[float]
+    peers_min: Optional[float] = None
 
     @property
     def reference(self) -> tuple[Optional[float], str]:
@@ -85,6 +91,20 @@ class Verdict:
     signals: dict = field(default_factory=dict)
 
 
+def _short_history(f: Features, signals: dict) -> Verdict:
+    """Menos de MIN_HISTORY_DAYS días de historial propio: no se sabe cuál es su
+    precio normal, así que no hay "oferta"."""
+    sudden = f.drop(f.previous)
+    if f.previous and f.previous >= MIN_REFERENCE and sudden >= POSIBLE_ERROR:
+        score = sudden * 100 + 8 * math.log10(max(f.previous - f.price, 1.0))
+        return Verdict("posible_error", round(score, 1), f.previous, "anterior", sudden, signals)
+    cheaper = f.drop(f.peers_min)
+    if f.peers_min and f.peers_min >= MIN_REFERENCE and cheaper >= OFERTA:
+        score = cheaper * 100 + 8 * math.log10(max(f.peers_min - f.price, 1.0))
+        return Verdict("mas_barato", round(score, 1), f.peers_min, "otras_tiendas", cheaper, signals)
+    return Verdict(None, 0.0, None, "", 0.0, signals)
+
+
 def classify(f: Features) -> Verdict:
     ref, ref_kind = f.reference
     drop = f.drop(ref)
@@ -101,6 +121,8 @@ def classify(f: Features) -> Verdict:
             and (f.median30 is None or f.price >= f.median30 * 0.97)):
         return Verdict("descuento_falso", round(claimed * 100, 1), ref, ref_kind, drop, signals)
 
+    if f.days90 < MIN_HISTORY_DAYS:
+        return _short_history(f, signals)
     if ref is None or ref < MIN_REFERENCE or drop < OFERTA:
         return Verdict(None, 0.0, ref, ref_kind, drop, signals)
 
@@ -143,6 +165,7 @@ def features_for(product: dict, intervals: list[dict], peer_prices: list[float],
         median30=s30.median, median90=s90.median, min30=s30.minimum, days30=s30.days_covered, days90=s90.days_covered,
         previous=prev,
         peers_median=median(peer_prices) if peer_prices else None,
+        peers_min=min(peer_prices) if peer_prices else None,
         peers=len(peer_prices),
         list_14d_ago=_list_price_on(intervals, ago),
     )
@@ -180,7 +203,8 @@ def _load(db: Database, today: str) -> tuple[list[dict], dict[int, list[dict]], 
     return products, intervals, peers
 
 
-VALIDATED_KINDS = ("oferta_fuerte", "posible_error")
+# "Más barato que en X" se apoya solo en la otra tienda: también se valida.
+VALIDATED_KINDS = ("oferta_fuerte", "posible_error", "mas_barato")
 
 
 async def _validate_peers(pairs: list[tuple[dict, dict]], decider: Optional[Decider]) -> list[bool]:
@@ -189,12 +213,16 @@ async def _validate_peers(pairs: list[tuple[dict, dict]], decider: Optional[Deci
     Con Jev encendido usa el question set de matching; si no, la regla que
     busca contradicciones entre nombre y EAN.
     """
-    states = [schemas.match_state(_side(a), _side(b)) for a, b in pairs]
+    # Paquete contra producto solo: rechazado por código, sin preguntarle a Jev.
+    bundle = [matching.bundle_mismatch(a["name"] or "", b["name"] or "") for a, b in pairs]
+    ask = [pair for pair, bad in zip(pairs, bundle) if not bad]
+    states = [schemas.match_state(_side(a), _side(b)) for a, b in ask]
     if decider is not None:
         decs = await decider.decide_many(schemas.MATCH, states, schemas.ean_pair_rules)
     else:
         decs = [schemas.ean_pair_rules(s) for s in states]
-    return [schemas.match_outcome(d) == "accept" for d in decs]
+    answers = iter(schemas.match_outcome(d) == "accept" for d in decs)
+    return [False if bad else next(answers) for bad in bundle]
 
 
 def _side(p: dict) -> dict:
@@ -202,15 +230,21 @@ def _side(p: dict) -> dict:
 
 
 async def run(db: Database, today: str, decider: Optional[Decider] = None,
-              match_decider: Optional[Decider] = None) -> dict:
+              match_decider: Optional[Decider] = None, *, dry_run: bool = False) -> dict:
     """Detecta y guarda las ofertas del día. Los posibles errores pasan por el
     filtro de causa; solo 'error_real' con probabilidad alta queda pendiente de
-    aprobación. Todo lo demás de ese grupo queda descartado con su causa."""
+    aprobación. Todo lo demás de ese grupo queda descartado con su causa.
+
+    `dry_run`: no escribe nada y devuelve en "filas" lo que guardaría, con el
+    estado que tendría (respeta lo aprobado o rechazado en el panel)."""
     products, intervals, peers = _load(db, today)
 
     def verdict(p: dict, peer_rows: list[dict]) -> tuple[Verdict, Features]:
         f = features_for(p, intervals.get(p["id"], []), [float(q["cur_price"]) for q in peer_rows], today)
-        return classify(f), f
+        v = classify(f)
+        if v.kind == "mas_barato":
+            v.signals["peer_store"] = min(peer_rows, key=lambda q: float(q["cur_price"]))["store_key"]
+        return v, f
 
     first = [(p, *verdict(p, peers.get(p["id"], []))) for p in products]
     # Una oferta fuerte o un posible error que se apoya en otras tiendas se
@@ -232,6 +266,15 @@ async def run(db: Database, today: str, decider: Optional[Decider] = None,
         if v.kind:
             found.append((p, v))
             previous[p["id"]] = f.previous
+
+    # "Más barato que en X" no se dice si alguna tienda del grupo (validada o no,
+    # con precio de los últimos 2 días) lo vende igual o más barato: la ficha la
+    # mostraría al lado.
+    cheaper = [p["id"] for p, v in found if v.kind == "mas_barato"]
+    if cheaper:
+        lowest = clusters.cheapest_peers(db, cheaper, fresh_since(today))
+        found = [(p, v) for p, v in found
+                 if v.kind != "mas_barato" or lowest.get(p["id"], float("inf")) > float(p["cur_price"])]
 
     errors = [(p, v) for p, v in found if v.kind == "posible_error"]
     causes = {}
@@ -264,7 +307,27 @@ async def run(db: Database, today: str, decider: Optional[Decider] = None,
             cause.value if cause else None, cause.probability if cause else None,
             cause.source if cause else None, status,
         ))
+    # Ofertas de hoy que una corrida anterior del mismo día guardó y esta ya no
+    # encuentra (par rechazado por Jev, precio que cambió): se retiran, también
+    # las aprobadas, porque lo que se aprobó ya no se sostiene.
+    found_ids = {p["id"] for p, _ in found}
+    withdrawn = [(r["id"],) for r in db.query(
+        "SELECT id, product_id FROM deals WHERE detected_on=? AND status IN ('published','approved','pending')",
+        (today,)) if r["product_id"] not in found_ids]
+    counts["retiradas"] = len(withdrawn)
+    if dry_run:
+        kept = {r["product_id"]: r["status"] for r in db.query(
+            "SELECT product_id, status FROM deals WHERE detected_on=? AND status IN ('approved','rejected')",
+            (today,))}
+        cols = ("product_id", "detected_on", "kind", "score", "price", "reference", "features",
+                "cause", "cause_prob", "cause_source", "status")
+        sim = [dict(zip(cols, r)) for r in rows]
+        for r in sim:
+            r["status"] = kept.get(r["product_id"], r["status"])
+        return {"products": len(products), **counts, "peer_rejected_downgrades": dropped, "filas": sim}
     with db.transaction():
+        if withdrawn:
+            db.executemany("UPDATE deals SET status='withdrawn' WHERE id=?", withdrawn)
         # No pisa decisiones ya tomadas en el panel.
         db.executemany(
             """INSERT INTO deals (product_id, detected_on, kind, score, price, reference, features,

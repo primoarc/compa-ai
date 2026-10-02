@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plantilla: __REPO__ y __HOME__ se reemplazan al instalar (docs/ingesta-programada.md). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.compa-ai.ingest-local</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>__REPO__/scripts/ingest_local.sh</string>
+  </array>
+  <!-- Kemik, La Curacao y RadioShack (~35 min). 20:00 hora de la Mac (Guatemala), cuando suele estar encendida; son las 02:00 UTC,
+       antes del detector de Actions (09:00 UTC). Si la Mac duerme, launchd la corre al despertar. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>20</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.gt-compare/ingest-local.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.gt-compare/ingest-local.log</string>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

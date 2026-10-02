@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 
 from .. import alerts, categorize, clusters, detector
 from ..db import Database, open_db
@@ -14,6 +15,7 @@ from ..decide import Decider
 from ..decide.core import use_enabled
 from ..history import today_utc
 from .backfill import backfill
+from .hosts import WHERE, stores_for
 from .runner import run_all
 
 
@@ -25,14 +27,28 @@ async def post_process(db: Database, day: str) -> dict:
     """
     uses = {u: use_enabled(u) for u in ("category", "match", "price_cause")}
     decider = Decider(db=db) if any(uses.values()) else None
+    seconds: dict[str, float] = {}
+
+    async def timed(name: str, coro):
+        started = time.monotonic()
+        try:
+            return await coro
+        finally:
+            seconds[name] = time.monotonic() - started
+            print(f"post {name:12} {seconds[name]:7.0f}s", flush=True)
+
+    async def sync(fn, *a):
+        return fn(*a)
+
     try:
         out = {
-            "categorias": await categorize.run(db, decider, use_jev=uses["category"]),
-            "grupos": await clusters.rebuild(db, decider if uses["match"] else None),
-            "detector": await detector.run(db, day, decider if uses["price_cause"] else None,
-                                           decider if uses["match"] else None),
-            "alertas": alerts.send_due(db, day),
+            "categorias": await timed("categorías", categorize.run(db, decider, use_jev=uses["category"])),
+            "grupos": await timed("grupos", clusters.rebuild(db, decider if uses["match"] else None)),
+            "detector": await timed("detector", detector.run(db, day, decider if uses["price_cause"] else None,
+                                                             decider if uses["match"] else None)),
+            "alertas": await timed("alertas", sync(alerts.send_due, db, day)),
         }
+        out["segundos"] = {k: round(v) for k, v in seconds.items()}
         if decider is not None:
             out["jev"] = {**decider.stats, "usd": round(decider.cost_usd(), 4)}
         return out
@@ -115,6 +131,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--limit", type=int, default=0, help="máximo de SKUs por tienda (0 = todos)")
     run.add_argument("--db", help="ruta o URL de la base (por defecto GT_COMPARE_DB_URL o ~/.gt-compare/history.db)")
     run.add_argument("--no-post", action="store_true", help="solo ingesta, sin categorías/grupos/detector")
+    run.add_argument("--where", choices=WHERE,
+                     help="solo las tiendas de Actions o de la Mac (gt_compare/ingest/hosts.py)")
     post = sub.add_parser("post", help="categorías, grupos y detector sobre lo ya ingerido")
     post.add_argument("--db")
     post.add_argument("--day", help="día a evaluar (AAAA-MM-DD, por defecto hoy UTC)")
@@ -135,7 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "backfill":
         print(backfill(db, only=args.store))
     elif args.cmd == "run":
-        results = asyncio.run(run_all(db, only=args.store, limit=args.limit))
+        only = args.store or (stores_for(args.where) if args.where else None)
+        # --store a mano ignora la cadencia; --where la respeta (Novex cada 3 días).
+        results = asyncio.run(run_all(db, only=only, limit=args.limit, cadence=not args.store))
         for r in results:
             print(f"{r.store_key:12} {r.status:8} {r.records:7} SKUs {r.changed:6} cambios "
                   f"{r.pages:5} págs {r.errors:3} errores {r.seconds:6.0f}s  {r.note}")

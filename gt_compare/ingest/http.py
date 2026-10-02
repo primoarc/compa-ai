@@ -28,6 +28,9 @@ DEFAULT_HEADERS = {
 }
 
 RETRY_STATUS = {429, 500, 502, 503, 504, 520, 522, 524}
+# Cabeceras cuyo valor no se escribe en el log (el de Actions es público).
+REDACT_HEADERS = {"set-cookie", "cookie", "authorization"}
+FIRST_ERROR_BODY = 300
 MAX_RETRIES = 4
 MAX_CONSECUTIVE_ERRORS = 8
 
@@ -57,6 +60,7 @@ class PoliteClient:
         self.requests = 0
         self.retries = 0
         self.failures = 0
+        self._described: set[int] = set()   # códigos 4xx ya registrados con detalle
         self._client = httpx.AsyncClient(
             headers=DEFAULT_HEADERS, timeout=timeout, follow_redirects=True, transport=transport
         )
@@ -99,7 +103,13 @@ class PoliteClient:
                 else:
                     self._consecutive += 1
                     self.failures += 1
-                    logger.warning("%s %s -> %s", self.store_key, url[:100], resp.status_code)
+                    # server y el inicio del cuerpo distinguen un WAF (Akamai, Cloudflare)
+                    # de un error de la aplicación.
+                    snippet = " ".join(resp.text[:120].split()) if resp.text else ""
+                    logger.warning("%s %s -> %s server=%s %s", self.store_key, url[:100],
+                                   resp.status_code, resp.headers.get("server", "(sin cabecera)"),
+                                   snippet or "(cuerpo vacío)")
+                    self._describe(resp)
                 return resp
             attempt += 1
             if attempt > MAX_RETRIES:
@@ -120,6 +130,18 @@ class PoliteClient:
                 logger.warning("%s %s -> %s, reintento %s en %.1fs",
                                self.store_key, url[:80], type(error).__name__, attempt, delay)
             await self._sleep(delay)
+
+    def _describe(self, resp: httpx.Response) -> None:
+        """La primera vez que la tienda responde un código 4xx: todas las
+        cabeceras y el inicio del cuerpo, para saber quién contestó."""
+        if resp.status_code in self._described:
+            return
+        self._described.add(resp.status_code)
+        headers = {k: ("(omitida)" if k.lower() in REDACT_HEADERS else v)
+                   for k, v in resp.headers.items()}
+        body = resp.text[:FIRST_ERROR_BODY] if resp.text else ""
+        logger.warning("%s primer %s: cabeceras=%s cuerpo(%s bytes)=%r", self.store_key,
+                       resp.status_code, headers, len(resp.content), body)
 
     async def pause(self, seconds: float) -> None:
         """Espera sin pedir nada (respeta el `sleep` inyectado en tests)."""

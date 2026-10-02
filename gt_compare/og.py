@@ -89,7 +89,8 @@ def _chart(d: ImageDraw.ImageDraw, series: list[tuple[str, float]], price: float
 
 
 def render(deal: dict, *, vertical: bool = False) -> bytes:
-    """deal: name, store, price, reference, drop_pct (0..1); opcionales series [(día, precio)], tag y vs_stores."""
+    """deal: name, store, price, reference, drop_pct (0..1); opcionales series [(día, precio)], tag, vs_stores,
+    against ("bajo su precio anterior") y ref_label ("Antes")."""
     w, h = (1080, 1920) if vertical else (1200, 630)
     pad = 96 if vertical else 72
     img = Image.new("RGB", (w, h), WHITE)
@@ -97,7 +98,7 @@ def render(deal: dict, *, vertical: bool = False) -> bytes:
     pct = round(deal["drop_pct"] * 100)
 
     _text(d, (pad, pad), "Compa AI", 44 if vertical else 34, bold=True)
-    against = "menos que en otras tiendas" if deal.get("vs_stores") else "bajo su precio normal"
+    against = deal.get("against") or ("menos que en otras tiendas" if deal.get("vs_stores") else "bajo su precio normal")
     tag = deal.get("tag") or f"{pct}% {against}"
     tag_size = 40 if vertical else 30
     tw = int(d.textlength(tag, font=_font(tag_size, True)))
@@ -120,7 +121,7 @@ def render(deal: dict, *, vertical: bool = False) -> bytes:
     y_meta = y_price + int(price_size * 1.4)
     meta = f"en {deal['store']}"
     if deal.get("reference") and not deal.get("tag"):
-        label = "En otras tiendas" if deal.get("vs_stores") else "Precio normal"
+        label = deal.get("ref_label") or ("En otras tiendas" if deal.get("vs_stores") else "Precio normal")
         meta = f"{label} {_money(deal['reference'])}  ·  " + meta
     _text(d, (pad, y_meta), meta, small, fill=MUTED)
     if vertical:

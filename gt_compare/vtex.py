@@ -61,6 +61,8 @@ class Product:
     list_price: float | None = None
     # Precio solo en efectivo (Intelaf). `price` es el que vale con tarjeta.
     cash_price: float | None = None
+    # Segundos desde que se vio este precio, para los que salen del catálogo.
+    seen_age: int | None = None
 
 
 @dataclass
