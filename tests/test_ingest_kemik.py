@@ -151,6 +151,9 @@ check("nota con límite", stats.coverage_note.endswith("parcial: límite de 45 r
 recs, stats, calls = asyncio.run(run(SITE, max_pages=3))
 check("presupuesto: peticiones", len(calls), 3)
 check("presupuesto: nota", "presupuesto de 3 páginas agotado" in stats.coverage_note, True)
+check("presupuesto agotado: parcial", stats.partial, True)
+recs, stats, calls = asyncio.run(run(SITE))
+check("árbol completo: no es parcial", stats.partial, False)
 
 # Una página que da 404 cuenta como error y el recorrido sigue.
 broken = {k: v for k, v in SITE.items() if k != "/chica?page=2"}
