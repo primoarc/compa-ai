@@ -298,6 +298,7 @@ async def enumerate_kemik(
             stats.coverage_note = note()
     except _Budget:
         pending = len({s for s, _ in stack} - visited)
+        stats.partial = True  # quedó árbol sin recorrer: la corrida no es completa
         stats.coverage_note = note(f"parcial: presupuesto de {max_pages} páginas agotado, "
                                    f"{pending} categorías sin visitar")
         return
