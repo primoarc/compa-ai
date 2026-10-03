@@ -11,6 +11,11 @@ on:
         description: "Tiendas separadas por espacio (vacío = las de Actions; Kemik, La Curacao y RadioShack van en la Mac)"
         required: false
         default: ""
+      solo_post:
+        description: "Solo post-proceso (grupos, detector, alertas, categorías) sobre lo ya ingerido"
+        type: boolean
+        required: false
+        default: false
       solo_ingesta:
         description: "Solo ingesta: sin categorías, grupos, Jev ni detector (para pruebas)"
         type: boolean
@@ -28,7 +33,7 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 350   # máximo de GitHub: 360
     env:
       GT_COMPARE_DB_URL: ${{ secrets.GT_COMPARE_DB_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
@@ -86,14 +91,19 @@ jobs:
         env:
           STORES: ${{ github.event.inputs.stores }}
           ONLY_INGEST: ${{ github.event.inputs.solo_ingesta }}
+          ONLY_POST: ${{ github.event.inputs.solo_post }}
         run: |
+          set -o pipefail
+          if [ "$ONLY_POST" = "true" ]; then
+            python -m gt_compare.ingest post 2>&1 | tee ingest.log
+            exit 0
+          fi
           # Sin tiendas elegidas: las que le tocan a Actions (gt_compare/ingest/hosts.py).
           args=(--where actions)
           for s in $STORES; do
             if [[ "$s" =~ ^[a-z]+$ ]]; then args+=(--store "$s"); fi
           done
           if [ "$ONLY_INGEST" = "true" ]; then args+=(--no-post); fi
-          set -o pipefail
           python -m gt_compare.ingest run "${args[@]}" 2>&1 | tee ingest.log
       - name: Resumen
         if: always() && steps.guard.outputs.ok == 'true'

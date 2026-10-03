@@ -20,8 +20,11 @@ from .runner import run_all
 
 
 async def post_process(db: Database, day: str) -> dict:
-    """Después de ingerir: categorías, grupos entre tiendas y detector.
+    """Después de ingerir: grupos entre tiendas, detector, alertas y categorías.
 
+    El detector va antes que las categorías: es lo que el sitio necesita y no
+    depende de ellas, y la categorización puede tardar más de una hora mientras
+    queda cola de categorías débiles (corrida del 3-oct cortada por timeout).
     Jev solo entra en los usos encendidos en `JEV_USES`; sin ninguno no se
     crea cliente ni se busca la key.
     """
@@ -42,11 +45,11 @@ async def post_process(db: Database, day: str) -> dict:
 
     try:
         out = {
-            "categorias": await timed("categorías", categorize.run(db, decider, use_jev=uses["category"])),
             "grupos": await timed("grupos", clusters.rebuild(db, decider if uses["match"] else None)),
             "detector": await timed("detector", detector.run(db, day, decider if uses["price_cause"] else None,
                                                              decider if uses["match"] else None)),
             "alertas": await timed("alertas", sync(alerts.send_due, db, day)),
+            "categorias": await timed("categorías", categorize.run(db, decider, use_jev=uses["category"])),
         }
         out["segundos"] = {k: round(v) for k, v in seconds.items()}
         if decider is not None:
@@ -130,10 +133,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--store", action="append", help="solo estas tiendas (repetible)")
     run.add_argument("--limit", type=int, default=0, help="máximo de SKUs por tienda (0 = todos)")
     run.add_argument("--db", help="ruta o URL de la base (por defecto GT_COMPARE_DB_URL o ~/.gt-compare/history.db)")
-    run.add_argument("--no-post", action="store_true", help="solo ingesta, sin categorías/grupos/detector")
+    run.add_argument("--no-post", action="store_true", help="solo ingesta, sin grupos/detector/categorías")
     run.add_argument("--where", choices=WHERE,
                      help="solo las tiendas de Actions o de la Mac (gt_compare/ingest/hosts.py)")
-    post = sub.add_parser("post", help="categorías, grupos y detector sobre lo ya ingerido")
+    post = sub.add_parser("post", help="grupos, detector, alertas y categorías sobre lo ya ingerido")
     post.add_argument("--db")
     post.add_argument("--day", help="día a evaluar (AAAA-MM-DD, por defecto hoy UTC)")
     fill = sub.add_parser("backfill", help="carga los snapshots del barrido viejo")
@@ -158,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         results = asyncio.run(run_all(db, only=only, limit=args.limit, cadence=not args.store))
         for r in results:
             print(f"{r.store_key:12} {r.status:8} {r.records:7} SKUs {r.changed:6} cambios "
-                  f"{r.pages:5} págs {r.errors:3} errores {r.seconds:6.0f}s  {r.note}")
+                  f"{r.pages:5} págs {r.errors:3} errores {r.seconds:6.0f}s  {r.note}", flush=True)
         if not args.no_post and not args.limit:
             print(asyncio.run(post_process(db, today_utc())))
         if any(r.status == "failed" for r in results):
