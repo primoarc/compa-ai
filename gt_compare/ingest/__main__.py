@@ -60,6 +60,15 @@ async def post_process(db: Database, day: str) -> dict:
             await decider.aclose()
 
 
+def exit_code(results: list) -> int:
+    """Una tienda caída no pone la corrida en rojo: sale como AVISO en el resumen.
+    Falla si cayó la mitad de las tiendas o más (problema nuestro, no de una tienda)."""
+    failed = [r.store_key for r in results if r.status == "failed"]
+    if failed:
+        print(f"AVISO: tiendas sin datos hoy: {', '.join(failed)}", flush=True)
+    return 1 if results and len(failed) * 2 >= len(results) else 0
+
+
 # Filas escritas por mes en el plan gratis de Turso (turso.tech/pricing, 28-sep-2026).
 WRITE_LIMIT = int(os.getenv("TURSO_WRITE_LIMIT", "10000000"))
 WRITE_WARN = 0.8
@@ -164,8 +173,7 @@ def main(argv: list[str] | None = None) -> int:
                   f"{r.pages:5} págs {r.errors:3} errores {r.seconds:6.0f}s  {r.note}", flush=True)
         if not args.no_post and not args.limit:
             print(asyncio.run(post_process(db, today_utc())))
-        if any(r.status == "failed" for r in results):
-            code = 1
+        code = exit_code(results)
     elif args.cmd == "copy":
         print(copy_db(open_db(args.src), db))
     elif args.cmd == "post":

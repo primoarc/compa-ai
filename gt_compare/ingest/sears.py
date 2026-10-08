@@ -17,8 +17,10 @@ from .http import PoliteClient, StoreBlocked
 from .types import EnumerationStats, ProductRecord
 
 
-PER_PAGE = 100
-MAX_PAGES = 200          # tope de seguridad (hoy son ~36)
+# La Store API tarda ~0,5 s por producto en el servidor (7-oct: 45-70 s por página
+# de 100, ~25 s por página de 50): páginas de 50 con espera larga (runner.TIMEOUTS).
+PER_PAGE = 50
+MAX_PAGES = 200          # tope de seguridad (hoy son ~72)
 MAX_HTML_PAGES = 400     # listado HTML: 12 por página (hoy ~227)
 
 _GTIN = re.compile(r"\d{8}|\d{12,14}")

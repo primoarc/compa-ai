@@ -98,6 +98,20 @@ check("con la base fallando, cada tienda termina partial y la siguiente igual co
       [(r.store_key, r.status, "último lote sin guardar" in r.note) for r in out],
       [("siman", "partial", True), ("sears", "partial", True)])
 
+# --- una tienda caída no pone la corrida en rojo; media corrida caída sí ----------
+from gt_compare.ingest.__main__ import exit_code  # noqa: E402
+
+
+def res(key, status):
+    return runner.RunResult(key, 0, status, 0, 0, 0, 0, 0.0, "")
+
+
+ten = [res(f"t{i}", "ok") for i in range(9)]
+check("una tienda failed de 10: verde", exit_code(ten + [res("sears", "failed")]), 0)
+check("5 de 10 failed: rojo", exit_code([res(f"t{i}", "failed") for i in range(5)] + ten[:5]), 1)
+check("todo ok: verde", exit_code(ten), 0)
+check("Sears espera más que el resto", (real.TIMEOUTS.get("sears"), real.DEFAULT_TIMEOUT), (120.0, 25.0))
+
 if failures:
     print(f"{len(failures)} fallos:")
     for f in failures:

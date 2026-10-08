@@ -35,6 +35,10 @@ PACING = {
 }
 DEFAULT_PACING = (3, 0.3)
 
+# Segundos de espera por respuesta. Sears responde, pero lento (ver sears.PER_PAGE).
+TIMEOUTS = {"sears": 120.0}
+DEFAULT_TIMEOUT = 25.0
+
 # Días mínimos entre corridas. Novex busca con Doofinder, que probablemente le
 # cobra cada búsqueda a la tienda: un recorrido completo son ~300.
 CADENCE_DAYS = {"novex": 3}
@@ -120,7 +124,8 @@ async def run_store(
         batch = []
 
     try:
-        async with PoliteClient(store.key, concurrency=concurrency, min_interval=interval) as client:
+        async with PoliteClient(store.key, concurrency=concurrency, min_interval=interval,
+                                timeout=TIMEOUTS.get(store.key, DEFAULT_TIMEOUT)) as client:
             async for rec in enum(store, client, stats, limit=limit):
                 if not plausible_price(rec.price):
                     continue  # precio de relleno: el artículo no está a la venta
