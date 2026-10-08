@@ -202,11 +202,15 @@ asyncio.run(ean_validation())
 async def bundle_case():
     mem = dbmod.open_db(":memory:")
 
+    # clusters.rebuild mira los últimos 7 días según el reloj: fechas relativas a hoy.
+    from gt_compare.history import today_utc
+    now = date.fromisoformat(today_utc())
+
     def seed(store, sku, name, price, days):
         rec = ProductRecord(store, sku, f"https://x/{store}/{sku}", name, price, ean="0821844146996")
-        pid = upsert_products(mem, [rec], TODAY)[sku]
+        pid = upsert_products(mem, [rec], now.isoformat())[sku]
         for off in range(-days, 1):
-            apply_observations(mem, d(off), [Observation(pid, price, None, 1)], None)
+            apply_observations(mem, (now + timedelta(days=off)).isoformat(), [Observation(pid, price, None, 1)], None)
         return pid
 
     laptop = seed("walmart", "1", "Hp 15 R5 8gb 512gb 15fc0353la", 4945.0, 30)

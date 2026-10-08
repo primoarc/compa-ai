@@ -4,7 +4,9 @@ name: ingesta-diaria
 # Sin los secrets GT_COMPARE_DB_URL y TURSO_AUTH_TOKEN no hace nada.
 on:
   schedule:
-    - cron: "0 9 * * *"   # 03:00 en Guatemala (UTC-6)
+    # 03:17 en Guatemala (UTC-6). Fuera de la hora en punto: GitHub atrasa más los
+    # schedules de minuto 0 (del 4 al 7-oct arrancaron entre 5 y 9 horas tarde).
+    - cron: "17 9 * * *"
   workflow_dispatch:
     inputs:
       stores:
