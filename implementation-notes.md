@@ -57,3 +57,6 @@
 - **Ofertas retiradas.** Al volver a correr el detector el mismo día, las filas que ya no se sostienen pasan a `withdrawn`, también las aprobadas. Así quedaron publicados el HP y el adaptador de Siman: Jev rechazó sus pares después de la aprobación.
 - **Una tienda que falla al escribir no frena la corrida.** Los 4 schedules de main del 29-sep al 2-oct murieron por un `ReadTimeout` de Turso dentro del manejo de error de una tienda.
 - **Export con `--simular`.** Recalcular `deals` en producción antes de que el dueño revise el PR cambiaría el sitio en vivo: el detector corre en modo simulación y no escribe.
+- **Corrida sin productos = `failed`** (27-nov). Antes solo fallaba con excepción; un cambio de plantilla pasaba como "ok".
+- **Catálogo viejo se reporta como falla** (27-nov). `catalog_search` ignora corridas con 0 productos y, pasados 3 días sin lectura, devuelve "sin precios recientes (última lectura hace N días)". No muestra precios viejos.
+- **La Curacao y RadioShack en vivo por la API de Adobe** (decisión del dueño, 27-nov). Salen de `CATALOG_STORES`. La clave y los códigos de tienda van fijos en `scraper.py`, como las de Max y PriceSmart. Su ingesta HTML no se tocó y queda `failed`. Riesgo de robots.txt en docs/robots.md.

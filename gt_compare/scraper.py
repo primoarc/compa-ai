@@ -53,9 +53,10 @@ async def search_store(
 # --- Magento (La Curacao, RadioShack, Steren, EPA) --------------------------
 #
 # Expresiones del listado de productos que usa el lector de catálogo
-# (gt_compare/ingest/magento.py). La búsqueda en vivo de estas tiendas ya no
-# pasa por aquí: su robots.txt prohíbe /search/ y /catalogsearch/, así que se
-# responde desde el catálogo diario (gt_compare/catalog_search.py).
+# (gt_compare/ingest/magento.py). La búsqueda de estas tiendas no pasa por aquí:
+# su robots.txt prohíbe /search/ y /catalogsearch/. Steren y EPA responden desde
+# el catálogo diario (gt_compare/catalog_search.py); La Curacao y RadioShack,
+# desde la API de Adobe (más abajo).
 _RE_LINK = re.compile(
     r'<a\b[^>]*class="[^"]*product-item-link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
     re.I | re.S,
@@ -76,6 +77,115 @@ _RE_OLD_PRICE = re.compile(
     r'|data-price-amount="([\d.]+)"[^>]*data-price-type="oldPrice"',
     re.I,
 )
+
+
+# --- La Curacao y RadioShack (Adobe Live Search) ---------------------------
+#
+# Desde octubre de 2026 sus páginas pintan los productos con JavaScript contra la
+# API de catálogo de Adobe. La clave y los códigos van publicados en cada página
+# de categoría (window.LiveSearchPLP); si cambian, hay que copiarlos de ahí.
+# Búsqueda en vivo por decisión del dueño (docs/robots.md).
+_ADOBE_ENDPOINT = "https://catalog-service.adobe.io/graphql"
+_ADOBE_KEY = "2999e5a23078490096b15ef87ccc499c"
+_ADOBE_ENVIRONMENT = "b0453fee-9cca-41d9-930c-0a94fd84b9bd"
+_ADOBE_GUEST = "b6589fc6ab0dc82cf12099d1c2d40ab994e8410c"  # grupo "sin sesión"
+# Tienda -> prefijo de sus códigos de sitio.
+ADOBE_STORES = {"curacao": "lco", "radioshack": "rso"}
+# El sitio ordena por relevancia: se piden de sobra para no perder el más barato.
+_ADOBE_PAGE_SIZE = 60
+_ADOBE_QUERY = """
+query($phrase: String!, $pageSize: Int, $filter: [SearchClauseInput!], $context: QueryContextInput) {
+  productSearch(phrase: $phrase, page_size: $pageSize, filter: $filter, context: $context) {
+    items {
+      productView { name inStock url images { url roles } }
+      product { price_range { minimum_price { final_price { value } regular_price { value } } } }
+    }
+  }
+}
+"""
+
+
+def _parse_adobe(store: Store, items: list) -> list[Product]:
+    products: list[Product] = []
+    for item in items:
+        try:
+            view = item["productView"]
+            prices = item["product"]["price_range"]["minimum_price"]
+            price = _as_price(prices["final_price"]["value"])
+            regular = _as_price(prices["regular_price"]["value"])
+            images = view.get("images") or []
+            main = next((i for i in images if "image" in (i.get("roles") or [])),
+                        images[0] if images else {})
+            products.append(Product(
+                store_key=store.key, store_name=store.name, name=view["name"], price=price,
+                available=1 if view["inStock"] else 0, url=view["url"], image=main.get("url"),
+                list_price=regular if price and regular and regular > price else None,
+            ))
+        except (KeyError, TypeError) as exc:
+            logger.warning("parse error en %s: %r", store.key, exc)
+    return products
+
+
+async def fetch_adobe(
+    client: httpx.AsyncClient,
+    store: Store,
+    query: str,
+    *,
+    timeout: int,
+    ttl_seconds: int,
+    use_cache: bool = True,
+) -> StoreResult:
+    ck = cache.make_key(store.key, "adobe:" + query)
+    if use_cache:
+        cached = cache.get(ck, ttl_seconds)
+        if cached is not None:
+            return StoreResult(store, _parse_adobe(store, cached), ok=True)
+
+    prefix = ADOBE_STORES[store.key]
+    headers = {
+        "User-Agent": HEADERS["User-Agent"],
+        "X-Api-Key": _ADOBE_KEY,
+        "Magento-Environment-Id": _ADOBE_ENVIRONMENT,
+        "Magento-Website-Code": f"{prefix}_guatemala_w",
+        "Magento-Store-Code": f"{prefix}_guatemala_s",
+        "Magento-Store-View-Code": f"{prefix}_guatemala_sv",
+        "Magento-Customer-Group": _ADOBE_GUEST,
+    }
+    body = {"query": _ADOBE_QUERY, "variables": {
+        "phrase": query.strip(),
+        "pageSize": _ADOBE_PAGE_SIZE,
+        # Los mismos filtros que usa el buscador del sitio.
+        "filter": [
+            {"attribute": "visibility", "in": ["Search", "Catalog, Search"]},
+            {"attribute": "inStock", "eq": "true"},
+        ],
+        "context": {"customerGroup": _ADOBE_GUEST},
+    }}
+    try:
+        resp = await asyncio.wait_for(
+            client.post(_ADOBE_ENDPOINT, json=body, headers=headers), timeout=timeout
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if payload.get("errors"):
+            logger.error("%s: la API de Adobe respondió %s", store.key, str(payload["errors"])[:300])
+            return StoreResult(store, [], ok=False, error="la API respondió con error")
+        items = payload["data"]["productSearch"]["items"]
+        products = _parse_adobe(store, items)
+        # Resultados que no se pueden leer son un cambio de formato, no "no hay".
+        if items and not products:
+            return StoreResult(store, [], ok=False, error="formato inesperado")
+        if use_cache:
+            cache.set(ck, items)
+        return StoreResult(store, products, ok=True)
+    except (asyncio.TimeoutError, httpx.TimeoutException):
+        return StoreResult(store, [], ok=False, error="timeout")
+    except httpx.HTTPStatusError as exc:
+        logger.error("%s HTTP %s", store.key, exc.response.status_code)
+        return StoreResult(store, [], ok=False, error=f"HTTP {exc.response.status_code}")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("%s falló", store.key)
+        return StoreResult(store, [], ok=False, error=str(exc)[:120])
 
 
 # --- Kemik (Next.js, SSR) -------------------------------------------------

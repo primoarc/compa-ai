@@ -35,11 +35,11 @@ def d(offset):
 
 mem = dbmod.open_db(":memory:")
 pages.get_db = lambda: mem  # type: ignore[assignment]
-STORE = Store("curacao", "La Curacao", "www.lacuracaonline.com", kind="magento")
+STORE = Store("steren", "Steren", "www.steren.com.gt", kind="magento")
 
 
 def rec(sku, price):
-    return ProductRecord("curacao", sku, f"https://x/{sku}", f"Televisor demo {sku}", price)
+    return ProductRecord(STORE.key, sku, f"https://x/{sku}", f"Televisor demo {sku}", price)
 
 
 # 40 días a Q5.000 y hace 3 días bajan a Q3.000 los dos (corrida completa).
@@ -126,8 +126,38 @@ SIMAN = Store("siman", "Siman", "gt.siman.com", kind="vtex")
 for store in (STORE, SIMAN):
     for day in (d(-1), TODAY):
         asyncio.run(runner.run_store(mem, store, day=day, enumerator=one("diario")))
-check("catálogo: visto hoy aunque no cambió", end_day("curacao", "diario"), TODAY)
+check("catálogo: visto hoy aunque no cambió", end_day("steren", "diario"), TODAY)
 check("otras tiendas: día por medio", end_day("siman", "diario"), d(-1))
+
+
+# --- Una tienda que deja de dar productos no pasa por buena -------------------
+async def empty_enum(store, client, stats, *, limit=0):
+    stats.coverage_note = "completo: 11 de 11 categorías del menú, 0 productos"
+    for nothing in ():
+        yield nothing
+
+
+EPA = Store("epa", "EPA", "gt.epaenlinea.com", kind="magento")
+
+
+def run_row(days_ago, seen, status="ok"):
+    at = f"{d(-days_ago)}T02:00:00+00:00"
+    mem.execute("INSERT INTO runs (store_key, kind, started_at, finished_at, status, seen) VALUES (?,?,?,?,?,?)",
+                (EPA.key, "ingest", at, at, status, seen))
+
+
+run_row(10, 1000)
+run_row(1, 0)  # así quedaron en producción: "ok" sin productos
+res = catalog_search.search(EPA, "televisor", db=mem)
+check("catálogo viejo: se reporta como falla, con su edad", (res.ok, res.error),
+      (False, "sin precios recientes (última lectura hace 10 días)"))
+
+empty = asyncio.run(runner.run_store(mem, EPA, day=TODAY, enumerator=empty_enum))
+check("corrida sin productos: failed", empty.status, "failed")
+check("corrida sin productos: la nota lo dice", "no se leyó ningún producto" in empty.note, True)
+
+run_row(3, 5)
+check("lectura de hace 3 días: todavía se busca", catalog_search.search(EPA, "televisor", db=mem).ok, True)
 
 if failures:
     print(f"{len(failures)} fallos:")

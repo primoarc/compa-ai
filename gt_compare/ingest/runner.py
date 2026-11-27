@@ -148,6 +148,11 @@ async def run_store(
     if status == "ok" and (stats.partial or "cortada" in stats.coverage_note
                            or stats.errors > max(5, stats.pages // 10)):
         status = "partial"
+    # Si la tienda cambia su página, el enumerador termina sin errores y sin
+    # productos: eso no es una corrida buena.
+    if status != "failed" and stats.records == 0:
+        status = "failed"
+        stats.coverage_note = f"no se leyó ningún producto; {stats.coverage_note}"
 
     seconds = time.monotonic() - started
     try:

@@ -262,6 +262,8 @@ async def search_all(
             elif s.key in catalog_search.CATALOG_STORES:
                 # Su buscador está prohibido en robots.txt: se busca en el catálogo diario.
                 tasks.append(asyncio.to_thread(catalog_search.search, s, query, plan=plan))
+            elif s.key in scraper.ADOBE_STORES:
+                tasks.append(_search_with_aliases(scraper.fetch_adobe, client, s, query, plan=plan, **kw))
             elif s.kind == "kemik":
                 tasks.append(_search_with_aliases(scraper.fetch_kemik, client, s, query, plan=plan, **kw))
             elif s.kind == "pricesmart":
