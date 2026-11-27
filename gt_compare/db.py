@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS price_history (
 );
 -- "Visto hoy" = tiene un intervalo que termina hoy. Así la ingesta no reescribe
 -- cada producto a diario solo para marcarlo como visto.
-CREATE INDEX IF NOT EXISTS ix_ph_end ON price_history (end_day);
+-- Sin índice por end_day: cada marca escribiría dos veces (Turso cobra los
+-- índices). Las consultas diarias que filtran por él recorren la tabla.
+DROP INDEX IF EXISTS ix_ph_end;
 
 CREATE TABLE IF NOT EXISTS clusters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,8 +197,9 @@ def _result_id(sql: str, lastrowid: Optional[int], rowcount: int) -> int:
 class Database:
     """Interfaz mínima común a los dos backends.
 
-    `rows_written` cuenta las filas que tocaron las sentencias de este proceso
-    (sin las que tocan los triggers): es lo que mide el plan de Turso.
+    `rows_written` suma lo escrito por este proceso. Con Turso es la cifra que
+    devuelve el servidor; en SQLite local, las filas afectadas (sin índices ni
+    triggers).
     """
 
     rows_written = 0
@@ -415,7 +418,10 @@ class TursoDatabase(Database):
             if item.get("type") != "ok":
                 raise RuntimeError(f"turso: {item.get('error')}")
             result = item["response"]["result"]
-            self.rows_written += int(result.get("affected_row_count") or 0)
+            billed = result.get("rows_written")
+            if billed is None:
+                billed = result.get("affected_row_count")
+            self.rows_written += int(billed or 0)
             out.append(result)
         return out
 

@@ -110,8 +110,18 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Miniaturas de las dos a ?width= (517 KB pasan a 8 KB)
 - [ ] La Curacao y RadioShack: ingesta diaria desde la API (historial y ofertas)
 - [ ] Kemik responde 403 a la búsqueda en vivo: evaluar respaldo desde el catálogo
-- [ ] Commit antes del 7-dic o GitHub desactiva la ingesta programada
-- [ ] Commit, PR y deploy de las correcciones
+- [x] Commit antes del 7-dic o GitHub desactiva la ingesta programada (merge del PR 9, 27-nov)
+- [x] Commit, PR y deploy de las correcciones (PR 9, verificado en producción el 27-nov)
+
+## Ronda 6 (escrituras de Turso, 27-nov)
+- [x] Medir qué escribe cada sentencia (local, sin tocar la base)
+- [x] En productos existentes se escriben solo las columnas que cambiaron (~145 k escrituras menos por día), con test
+- [x] Quitar `ix_ph_end` (~140 k menos por día; autorizado por el dueño, se aplica en la primera ingesta que pueda escribir)
+- [x] Contador `db_usage` con `rows_written` de la respuesta de Turso, con test
+- [ ] Tras la primera ingesta: comparar `db_usage` con el panel de Turso y confirmar que el índice se borró
+- [ ] Podar intervalos viejos antes de que `price_history` pase de ~4 M de filas (límite de lecturas)
+- [ ] Revisar por qué Intelaf cambia casi todos sus productos a diario
+- [ ] Jev falla en categorías en las corridas del 16 y 17-nov
 
 ## Hallazgos
 - LCP base en producción (home): 3.1 s y 3.9 s; elemento LCP `<h1>`; Google Fonts bloquea ~1 s.
@@ -137,3 +147,6 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - Precio de la API igual al de la ficha en 6 de 6 televisores. Trae `marca` y `gtin_iden_del_prod_t` (GTIN sin validar).
 - Sin confirmar: acceso desde Vercel y GitHub, límites de la API, términos de uso. El robots.txt de las tiendas prohíbe `/graphql` y la búsqueda en sus dominios; la API está en un dominio de Adobe.
 - "tv 65" en producción pone de más barato un mueble de Max ("Módulo de TV ... hasta 65\"", Q1,399).
+- Escrituras por sentencia (EXPLAIN local): marcar visto toca 2 árboles (tabla e `ix_ph_end`), un intervalo nuevo 3, el upsert de producto 3 más el índice de búsqueda (5,1 filas por producto contra 1 si solo se escribe el precio), una oferta 4.
+- Estimado real: ~530 k escrituras por día contra ~180 k que cuenta `db_usage`; 10 M se agotan en ~19 días, como pasó en octubre y noviembre. Sin confirmar en el panel de Turso: su documentación no dice si cuenta índices.
+

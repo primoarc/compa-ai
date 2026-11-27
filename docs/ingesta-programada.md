@@ -169,6 +169,36 @@ alcance del PR lo va a mostrar.
 
 ## Escrituras en Turso
 
+### Corrección del 27-nov: el estimado contaba un tercio
+
+Turso bloqueó las escrituras del 21 al 31-oct y desde el 17-nov, con `db_usage` en 32% y
+35%. El contador sumaba filas afectadas; los índices y el índice de búsqueda parecen
+cobrarse aparte (sin confirmar en el panel: la documentación de Turso no lo dice). Con
+`EXPLAIN` sobre una base local: marcar visto escribía 2 árboles, un intervalo nuevo 3 y el
+upsert de un producto 3 más el índice de búsqueda.
+
+Cambios: en un producto que ya existe solo se escriben las columnas que cambiaron (un precio
+nuevo ya no reescribe url, ean ni el índice de búsqueda); se quitó `ix_ph_end` (la
+migración lo borra en la primera ingesta que pueda escribir); `db_usage` suma el
+`rows_written` que devuelve Turso.
+
+| Escrituras estimadas por día | Antes | Después |
+|---|---|---|
+| Marcar como visto | ~235 k | ~117 k |
+| Productos nuevos o con cambios | ~175 k | ~30 k |
+| Intervalos de precio nuevos | ~75 k | ~50 k |
+| Ofertas y otros | ~45 k | ~45 k |
+| **Total** | **~530 k (~16 M al mes)** | **~245 k (~7,4 M al mes, 74% del plan)** |
+
+- La primera corrida después de un bloqueo largo abre un intervalo nuevo por casi cada
+  producto (hueco mayor a 3 días): ~0,5 M de una sola vez.
+- **Lecturas:** sin el índice, tres consultas diarias recorren `price_history`. En una copia
+  local (422 k intervalos) tardan lo mismo y dan el mismo resultado. Cada recorrido cuenta
+  todas las filas, así que el costo crece con la tabla: con el plan gratis (500 M al mes)
+  habrá que podar intervalos viejos cuando pase de ~4 M de filas.
+
+Lo que sigue es el estimado anterior (28-sep), en filas afectadas.
+
 Plan gratis: 10 M filas escritas por mes. Esquema aplicado (decisión del 28-sep): un
 producto sin cambios se marca como visto **cada dos días**; los que están en `/ofertas`, en la
 oferta del día o en la cola del panel se marcan **todos los días**. "Visto hoy" pasa a ser "visto

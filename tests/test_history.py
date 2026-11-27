@@ -139,23 +139,64 @@ upsert_products(mem, [rec("123", 90.0, ean=None)], "2026-09-04")
 check("EAN no se pierde si la corrida no lo trae",
       mem.query_one("SELECT ean FROM products WHERE id=?", (legacy_id,))["ean"], "7501031311309")
 
-# Una segunda corrida sin cambios no reescribe productos (cada fila cuenta en Turso)
-writes = []
+# Cada fila e índice escrito cuenta en Turso: solo se escribe lo que cambió.
+updates: list[str] = []
 orig_executemany = mem.executemany
 
 
 def spy(sql, rows):
-    rows = list(rows)
-    if "INSERT INTO products" in sql:
-        writes.append(len(rows))
+    if "products" in sql:
+        updates.append(" ".join(sql.split()))
     return orig_executemany(sql, rows)
 
 
 mem.executemany = spy  # type: ignore[assignment]
-upsert_products(mem, [rec("123", 90.0, ean="7501031311309")], "2026-09-05")
-check("sin cambios no se escribe", writes, [])
-upsert_products(mem, [rec("123", 85.0, ean="7501031311309")], "2026-09-06")
-check("con cambio se escribe", writes, [1])
+
+
+def cost(records, day):
+    """Filas modificadas, contando las que escribe el índice de búsqueda."""
+    updates.clear()
+    before = mem._conn.total_changes
+    upsert_products(mem, records, day)
+    return mem._conn.total_changes - before
+
+
+def product(pid):
+    return mem.query_one("SELECT * FROM products WHERE id=?", (pid,))
+
+
+def found(word):
+    return [r["rowid"] for r in
+            mem.query("SELECT rowid FROM product_search WHERE product_search MATCH ?", (word,))]
+
+
+EAN = "7501031311309"
+check("sin cambios no se escribe", cost([rec("123", 90.0, ean=EAN)], "2026-09-05"), 0)
+check("un EAN inválido no obliga a reescribir", cost([rec("123", 90.0, ean="12345")], "2026-09-05"), 0)
+check("solo cambia el precio: una fila", cost([rec("123", 85.0, ean=EAN)], "2026-09-06"), 1)
+check("solo cambia el precio: no toca columnas con índice", updates,
+      ["UPDATE products SET cur_price=?, last_seen=? WHERE id=?"])
+row = product(legacy_id)
+check("solo cambia el precio: valores",
+      (row["cur_price"], row["last_seen"], row["ean"], row["name"]),
+      (85.0, "2026-09-06", EAN, "Tele 55 UN55TU7000"))
+
+renamed = rec("123", 85.0, ean=EAN)
+renamed.name = "Tele 55 QN55Q60D"
+check("cambio de nombre: también el índice de búsqueda", cost([renamed], "2026-09-07") > 1, True)
+check("cambio de nombre: código de modelo", product(legacy_id)["model_code"], "QN55Q60D")
+check("la búsqueda encuentra el nombre nuevo y no el viejo",
+      (legacy_id in found("QN55Q60D"), legacy_id in found("UN55TU7000")), (True, False))
+
+second = ids["124"]
+moved = rec("124", 95.0, url="https://x/otra", first=False)
+cheaper = rec("123", 80.0)
+cheaper.name = renamed.name
+upsert_products(mem, [cheaper, moved], "2026-09-08")
+check("lote con cambios distintos",
+      (product(legacy_id)["cur_price"], product(legacy_id)["url"], product(second)["url"],
+       product(second)["cur_price"], product(second)["last_seen"]),
+      (80.0, "https://x/p", "https://x/otra", 95.0, "2026-09-08"))
 del mem.executemany
 
 # --- esquema: el script partido para Turso es SQL válido, sentencia por sentencia ---
@@ -192,11 +233,14 @@ con.executescript("""CREATE TABLE products (id INTEGER PRIMARY KEY AUTOINCREMENT
 CREATE TABLE price_history (product_id INTEGER NOT NULL, start_day TEXT NOT NULL, end_day TEXT NOT NULL,
   price REAL, list_price REAL, available INTEGER, run_id INTEGER, PRIMARY KEY (product_id, start_day));
 INSERT INTO products (store_key, store_sku, url, name, first_seen, last_seen)
-  VALUES ('siman', '1', 'u', 'Licuadora Demo', 'd', 'd');""")
+  VALUES ('siman', '1', 'u', 'Licuadora Demo', 'd', 'd');
+CREATE INDEX ix_ph_end ON price_history (end_day);""")
 con.commit()
 con.close()
 upgraded = dbmod.open_db(old)
 check("columna nueva agregada", "cash_price" in {r["name"] for r in upgraded.query("PRAGMA table_info(price_history)")}, True)
+check("el índice por end_day se borra al migrar",
+      upgraded.query("SELECT name FROM sqlite_master WHERE name='ix_ph_end'"), [])
 check("índice de búsqueda reconstruido",
       upgraded.query("SELECT rowid FROM product_search WHERE product_search MATCH 'licuadora'"), [{"rowid": 1}])
 
@@ -237,6 +281,17 @@ check("Turso executemany por lotes de 200", [len(b["requests"]) - 1 for _, _, b 
       [200, 200, 50])
 
 
+def billed(request: httpx.Request) -> httpx.Response:
+    result = {"cols": [], "rows": [], "affected_row_count": 1, "rows_written": 3}
+    return httpx.Response(200, json={"results": [
+        {"type": "ok", "response": {"type": "execute", "result": result}}, {"type": "ok"}]})
+
+
+counted = dbmod.TursoDatabase("https://d", "t", transport=httpx.MockTransport(billed))
+counted.execute("UPDATE t SET a=1")
+check("Turso cuenta lo que cobra (rows_written), no las filas afectadas", counted.rows_written, 3)
+
+
 def failing(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json={"results": [
         {"type": "error", "error": {"message": "no such table"}}, {"type": "ok"}]})
@@ -272,7 +327,7 @@ check("aviso desde el 80%", cli.record_writes(usage, "2026-09-29").startswith("A
 check("el mes suma corridas",
       usage.query_one("SELECT rows_written FROM db_usage WHERE month='2026-09'")["rows_written"],
       2 + int(cli.WRITE_LIMIT * 0.8))
-check("Turso cuenta affected_row_count", turso.rows_written > 0, True)
+check("sin rows_written en la respuesta cuenta affected_row_count", turso.rows_written > 0, True)
 
 if failures:
     print(f"{len(failures)} fallos:")

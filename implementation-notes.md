@@ -60,3 +60,5 @@
 - **Corrida sin productos = `failed`** (27-nov). Antes solo fallaba con excepción; un cambio de plantilla pasaba como "ok".
 - **Catálogo viejo se reporta como falla** (27-nov). `catalog_search` ignora corridas con 0 productos y, pasados 3 días sin lectura, devuelve "sin precios recientes (última lectura hace N días)". No muestra precios viejos.
 - **La Curacao y RadioShack en vivo por la API de Adobe** (decisión del dueño, 27-nov). Salen de `CATALOG_STORES`. La clave y los códigos de tienda van fijos en `scraper.py`, como las de Max y PriceSmart. Su ingesta HTML no se tocó y queda `failed`. Riesgo de robots.txt en docs/robots.md.
+- **Menos escrituras en Turso** (27-nov, autorizado por el dueño). Solo columnas cambiadas en `products`; sin `ix_ph_end` (las consultas diarias recorren `price_history`); `db_usage` usa `rows_written` del servidor. Estimado en docs/ingesta-programada.md.
+
