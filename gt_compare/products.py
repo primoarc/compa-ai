@@ -80,10 +80,8 @@ def _same_value(a, b) -> bool:
     return a == b
 
 
-def _changed(row: Optional[dict], rec: ProductRecord) -> bool:
-    """¿Hay que escribir la fila? Campos opcionales en None no borran lo guardado."""
-    if row is None:
-        return True
+def _changes(row: dict, rec: ProductRecord) -> dict:
+    """Columnas distintas de lo guardado. Campos opcionales en None no borran nada."""
     wanted = {
         "url": rec.url, "name": rec.name, "cur_price": rec.price, "cur_list_price": rec.list_price,
         "cur_available": rec.available, "promo_text": rec.promo_text, "cur_cash_price": rec.cash_price,
@@ -92,14 +90,15 @@ def _changed(row: Optional[dict], rec: ProductRecord) -> bool:
                          ("image", rec.image), ("store_category", rec.store_category)):
         if value is not None:
             wanted[field] = value
-    return any(not _same_value(row.get(k), v) for k, v in wanted.items())
+    return {k: v for k, v in wanted.items() if not _same_value(row.get(k), v)}
 
 
 def upsert_products(db: Database, records: Iterable[ProductRecord], day: str) -> dict[str, int]:
     """Inserta o actualiza SKUs. Devuelve {store_sku: product_id}.
 
-    Solo escribe filas nuevas o con algún dato distinto: en Turso cada fila
-    escrita cuenta, y "lo vi hoy" ya queda en el historial (el intervalo que
+    Solo escribe filas nuevas o con algún dato distinto, y en las existentes solo
+    las columnas que cambiaron: Turso cobra cada índice reescrito (url, ean) y el
+    de búsqueda (name). "Lo vi hoy" ya queda en el historial (el intervalo que
     termina hoy). `last_seen` es la última vez que cambió algo del producto.
 
     Si la tienda tiene una fila heredada del barrido viejo (identificada por URL
@@ -119,17 +118,31 @@ def upsert_products(db: Database, records: Iterable[ProductRecord], day: str) ->
         )
     }
     adopt: list[tuple] = []
-    adopted: set[str] = set()
     if legacy:
         for rec in records:
             if rec.first_sku and rec.url in legacy and rec.store_sku not in existing:
                 adopt.append((rec.store_sku, legacy.pop(rec.url)))
-                adopted.add(rec.store_sku)
-    to_write = [r for r in records if r.store_sku in adopted or _changed(existing.get(r.store_sku), r)]
+    new: list[ProductRecord] = []  # incluye las filas recién adoptadas
+    updates: dict[tuple[str, ...], list[tuple]] = {}  # columnas -> valores
+    for rec in {r.store_sku: r for r in records}.values():
+        row = existing.get(rec.store_sku)
+        if row is None:
+            new.append(rec)
+            continue
+        diff = _changes(row, rec)
+        if not diff:
+            continue
+        if "name" in diff and best_model_code(rec.name):
+            diff["model_code"] = best_model_code(rec.name)
+        diff["last_seen"] = day
+        updates.setdefault(tuple(diff), []).append((*diff.values(), row["id"]))
     with db.transaction():
         if adopt:
             db.executemany("UPDATE products SET store_sku=?, sku_level=1 WHERE id=?", adopt)
-        if to_write:
+        for columns, values in updates.items():
+            assignments = ", ".join(f"{c}=?" for c in columns)
+            db.executemany(f"UPDATE products SET {assignments} WHERE id=?", values)
+        if new:
             db.executemany(
                 """INSERT INTO products
                    (store_key, store_sku, url, name, brand, ean, model_code, image,
@@ -153,7 +166,7 @@ def upsert_products(db: Database, records: Iterable[ProductRecord], day: str) ->
                         rec.store_category, rec.price, rec.list_price, rec.available,
                         rec.cash_price, rec.promo_text, day, day,
                     )
-                    for rec in to_write
+                    for rec in new
                 ],
             )
     ids = {sku: row["id"] for sku, row in existing.items()}
