@@ -17,6 +17,11 @@ comprueba que no se cruzan y que suman 13).
 | RadioShack | **406** de Fastly: 8,8% de lo declarado | 99,9% | Mac |
 | Siman, Cemaco, Walmart, Max, Steren, EPA, Intelaf, Novex, Sears, PriceSmart | sin errores | | Actions |
 
+**Desde octubre de 2026** el HTML de La Curacao y RadioShack ya no trae productos
+(pasaron a Adobe Live Search): su ingesta queda `failed` y la búsqueda las consulta en
+vivo. No tienen historial ni ofertas nuevas hasta que la ingesta lea la API. Las
+mediciones de abajo son anteriores.
+
 ### Regla para La Curacao y RadioShack (decisión del dueño, 28-sep)
 
 - 95% o más de cobertura en Actions: se quedan en Actions.
@@ -293,9 +298,8 @@ read -rs "TURSO_TOKEN?Token de Turso: "; echo
    esté en `main`).
 5. Si terminó bien, apagar el cron local (pedírmelo o `crontab -e`).
 
-Importante: con esta rama, la búsqueda en vivo de La Curacao, RadioShack, Steren y EPA
-sale del catálogo guardado. **Hay que configurar Turso en Vercel antes de mergear**; si
-no, en producción esas cuatro tiendas aparecen como "catálogo no disponible".
+Importante: la búsqueda de Steren y EPA sale del catálogo guardado. **Hay que configurar Turso en Vercel antes de mergear**; si
+no, en producción esas dos tiendas aparecen como "catálogo no disponible".
 
 ## Job local (launchd)
 

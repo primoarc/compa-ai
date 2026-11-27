@@ -12,10 +12,10 @@ catálogo, sin autenticación).
 | `walmart`    | Walmart Guatemala | www.walmart.com.gt     | ✅ VTEX |
 | `siman`      | Siman             | gt.siman.com           | ✅ VTEX |
 | `max`        | Max Distelsa      | www.max.com.gt         | ✅ Constructor.io (API) |
-| `curacao`    | La Curacao        | www.lacuracaonline.com | ✅ Magento (scraper HTML) |
-| `radioshack` | RadioShack        | www.radioshackla.com   | ✅ Magento (scraper HTML) |
-| `steren`     | Steren            | www.steren.com.gt      | ✅ Magento (scraper HTML) |
-| `epa`        | EPA               | gt.epaenlinea.com      | ✅ Magento (scraper HTML) |
+| `curacao`    | La Curacao        | www.lacuracaonline.com | ✅ Adobe Live Search (API) |
+| `radioshack` | RadioShack        | www.radioshackla.com   | ✅ Adobe Live Search (API) |
+| `steren`     | Steren            | www.steren.com.gt      | ✅ Magento (catálogo diario) |
+| `epa`        | EPA               | gt.epaenlinea.com      | ✅ Magento (catálogo diario) |
 | `kemik`      | Kemik             | www.kemik.gt           | ✅ Next.js SSR (scraper HTML) |
 | `intelaf`    | Intelaf           | www.intelaf.com        | ✅ API pública |
 | `novex`      | Novex             | www.novex.com.gt       | ✅ Doofinder (API) |
@@ -24,8 +24,10 @@ catálogo, sin autenticación).
 
 > **13 tiendas activas.** Cada plataforma se maneja distinto:
 > - **VTEX** (Cemaco, Walmart, Siman): API pública de catálogo.
-> - **Magento** (La Curacao, RadioShack, Steren, EPA): scraping del HTML del
->   listado de búsqueda (`scraper.fetch_magento`).
+> - **Adobe Live Search** (La Curacao, RadioShack): la API de catálogo que usa
+>   su sitio (`scraper.fetch_adobe`).
+> - **Magento** (Steren, EPA): se busca en el catálogo diario
+>   (`catalog_search.py`).
 > - **Next.js SSR** (Kemik): scraping del HTML de `/search?query={q}`
 >   (`scraper.fetch_kemik`).
 > - **Intelaf**: API pública usada por su frontend (`scraper.fetch_intelaf`).
@@ -170,13 +172,11 @@ Parámetros (reversados del payload Nuxt y del `Copy as cURL` de la petición re
 - `fl` debe pedir explícitamente `price_GT_6303`, `inventory_GT_6303`, etc.
 
 Implementado y verificado en `scraper.fetch_pricesmart`.
-- **La Curacao** — **resuelto.** El dominio `www.lacuracao.com.gt` es NXDOMAIN
-  y `www.lacuracao.com` redirige a icuracao.com (EE.UU.), pero la operación de
-  Guatemala vive en **`www.lacuracaonline.com/guatemala/`** sobre **Magento**
-  (no VTEX). GraphQL está deshabilitado (403), así que se scrapea el HTML del
-  listado de búsqueda (`/guatemala/search/{query}`), extrayendo nombre, URL,
-  imagen y el precio `finalPrice` (en quetzales). Implementado en
-  `scraper.fetch_curacao` y **habilitada por defecto**.
+- **La Curacao y RadioShack** — Magento del grupo Unicomer
+  (`www.lacuracaonline.com/guatemala/`, `www.radioshackla.com/guatemala/`). Desde
+  octubre de 2026 el HTML de sus listados ya no trae productos: la búsqueda
+  consulta la API de Adobe (`scraper.fetch_adobe`). La ingesta diaria de las dos
+  todavía lee el HTML y queda como `failed`. Ver docs/robots.md.
 
 Si otra tienda empieza a bloquear de forma persistente:
 
@@ -189,7 +189,7 @@ Si otra tienda empieza a bloquear de forma persistente:
 ## Roadmap
 
 - `scraper.py` aloja las tiendas **no-VTEX**, reusando los mismos objetos
-  `Product`, cache y display: **La Curacao** y **RadioShack** (Magento),
-  **Steren** y **EPA** (Magento), **Kemik** (Next.js SSR), **Intelaf** (API),
+  `Product`, cache y display: **La Curacao** y **RadioShack** (Adobe),
+  **Steren** y **EPA** (catálogo Magento), **Kemik** (Next.js SSR), **Intelaf** (API),
   **Novex** (Doofinder), **Sears** (WooCommerce) y **PriceSmart**
   (Bloomreach Discovery).

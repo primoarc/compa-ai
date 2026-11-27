@@ -100,6 +100,19 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - [x] Chequeo de tipos (pyright, todo el paquete) y 14 suites en verde
 - [x] Revisión del diff contra main y correcciones
 
+## Ronda 5 (tiendas sin resultados, 27-nov)
+- [x] Diagnóstico de "tv 65" en producción, tienda por tienda
+- [x] Una corrida sin productos queda `failed`, no `ok` (con test)
+- [x] Catálogo sin lectura de más de 3 días: la búsqueda lo dice en vez de "sin resultados" (con test)
+- [ ] Turso bloquea escrituras: esperar el reinicio o subir de plan, y bajar escrituras (decide el dueño)
+- [x] La Curacao y RadioShack: probar la API de Live Search (funciona, sin tocar código)
+- [x] La Curacao y RadioShack: búsqueda en vivo con la API de Adobe (decisión del dueño), con test
+- [x] Miniaturas de las dos a ?width= (517 KB pasan a 8 KB)
+- [ ] La Curacao y RadioShack: ingesta diaria desde la API (historial y ofertas)
+- [ ] Kemik responde 403 a la búsqueda en vivo: evaluar respaldo desde el catálogo
+- [ ] Commit antes del 7-dic o GitHub desactiva la ingesta programada
+- [ ] Commit, PR y deploy de las correcciones
+
 ## Hallazgos
 - LCP base en producción (home): 3.1 s y 3.9 s; elemento LCP `<h1>`; Google Fonts bloquea ~1 s.
 - LCP local simulado 4G (home): 2,9 s antes, 1,06 s después.
@@ -114,3 +127,13 @@ Fuente de verdad del progreso de `feat/historial-ofertas`. Plan: `implementation
 - Siman y Max publican artículos no vendibles a Q8.000.000–Q99.999.999; se filtran en la ingesta.
 - La regla de código de modelo une tintas con impresoras ("GI-25"): su confianza bajó a 0,7 y ya no sirve de referencia de precio.
 - Las miniaturas vienen de la tienda en tamaño completo (1.000–1.600 px) para mostrarse a 56 px.
+- Turso bloqueó las escrituras del 21 al 31-oct y desde la noche del 17-nov (`BLOCKED: SQL write operations are forbidden`); las lecturas siguen.
+- El contador `db_usage` marcaba 35% el 17-nov, el día del bloqueo: subestima lo que cuenta Turso. Causa probable, sin confirmar en el panel: Turso suma las escrituras de índices.
+- La Curacao y RadioShack pasaron a Adobe Live Search entre el 21 y el 31-oct: el HTML de categoría ya no trae productos y la ingesta reportó "ok, 0 productos" hasta el 16-nov.
+- Kemik responde 403 a `/search` desde Vercel y desde la Mac (27-nov).
+- Intelaf, Novex y Sears no devolvieron ningún televisor de 65" el 27-nov: esos "sin resultados" no son una falla.
+- API de Live Search (27-nov): `POST https://catalog-service.adobe.io/graphql`, cabeceras `Magento-*` y `X-Api-Key` publicadas en cada página de categoría (`window.LiveSearchPLP`). Filtros del sitio: `visibility` e `inStock`.
+- Con `page_size` 500, el catálogo en stock salió en 6 peticiones (La Curacao, 2.573) y 3 (RadioShack, 1.085). `externalId` coincide con el `store_sku` del historial local en 2.296 y 929; el resto no se revisó.
+- Precio de la API igual al de la ficha en 6 de 6 televisores. Trae `marca` y `gtin_iden_del_prod_t` (GTIN sin validar).
+- Sin confirmar: acceso desde Vercel y GitHub, límites de la API, términos de uso. El robots.txt de las tiendas prohíbe `/graphql` y la búsqueda en sus dominios; la API está en un dominio de Adobe.
+- "tv 65" en producción pone de más barato un mueble de Max ("Módulo de TV ... hasta 65\"", Q1,399).

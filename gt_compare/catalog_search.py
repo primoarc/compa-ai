@@ -1,9 +1,8 @@
 """Búsqueda sobre el catálogo guardado, para tiendas cuyo buscador prohíbe robots.txt.
 
-La Curacao, RadioShack, Steren y EPA prohíben sus páginas de búsqueda
-(`/search/`, `/catalogsearch/`). Para ellas no se consulta la tienda en vivo:
-se busca en el catálogo que la ingesta diaria recorre por categorías, que sí
-están permitidas. El precio es el de la última corrida y se etiqueta con su
+Steren y EPA prohíben sus páginas de búsqueda (`/catalogsearch/`). Para ellas
+no se consulta la tienda en vivo: se busca en el catálogo que la ingesta diaria
+recorre por categorías, que sí están permitidas. El precio es el de la última corrida y se etiqueta con su
 edad: "actualizado hace X" por producto.
 """
 
@@ -19,9 +18,11 @@ from .stores import Store
 from .vtex import Product, StoreResult
 
 # Tiendas que se buscan desde el catálogo y no en vivo.
-CATALOG_STORES = {"curacao", "radioshack", "steren", "epa"}
+CATALOG_STORES = {"steren", "epa"}
 MAX_RESULTS = 60
 ENOUGH = 5
+# Un precio no visto en más de estos días no se muestra.
+MAX_AGE_DAYS = 3
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -33,9 +34,10 @@ def _fts_query(text: str) -> Optional[str]:
 
 
 def _last_run(db: Database, store_key: str) -> Optional[datetime]:
+    """Última corrida que leyó productos."""
     row = db.query_one(
         """SELECT MAX(finished_at) AS f FROM runs
-           WHERE store_key=? AND kind='ingest' AND status IN ('ok','partial')""",
+           WHERE store_key=? AND kind='ingest' AND status IN ('ok','partial') AND seen > 0""",
         (store_key,),
     )
     return datetime.fromisoformat(row["f"]) if row and row["f"] else None
@@ -58,6 +60,10 @@ def search(store: Store, query: str, *, db: Optional[Database] = None, plan=None
     if last_run is None:
         return StoreResult(store, [], ok=False, error="catálogo sin corridas")
     now = datetime.now(timezone.utc)
+    stale_days = (now.date() - last_run.date()).days
+    if stale_days > MAX_AGE_DAYS:
+        return StoreResult(store, [], ok=False,
+                           error=f"sin precios recientes (última lectura hace {stale_days} días)")
     variants = list(plan.search_queries[:6]) if plan is not None and getattr(plan, "search_queries", None) \
         else relevance.search_queries(query, limit=4)
     seen: set[int] = set()
@@ -75,9 +81,9 @@ def search(store: Store, query: str, *, db: Optional[Database] = None, plan=None
                  AND p.cur_price IS NOT NULL
                  -- "+" evita el índice de end_day: se busca por producto, pocas filas
                  AND EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id
-                             AND +h.end_day >= date('now', '-3 day'))
+                             AND +h.end_day >= date('now', ?))
                ORDER BY product_search.rank LIMIT ?""",
-            (match, store.key, MAX_RESULTS),
+            (match, store.key, f"-{MAX_AGE_DAYS} day", MAX_RESULTS),
         )
         for r in rows:
             if r["id"] in seen:

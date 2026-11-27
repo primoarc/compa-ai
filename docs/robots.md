@@ -18,8 +18,10 @@ EPA (no maneja bien comodines ni precedencia), así que no se usa.
 | Max | búsqueda (Constructor.io) | `ac.cnstrc.com/search/...` | 404 | permitido | sin robots.txt |
 | La Curacao | ingesta (categoría) | `/guatemala/c/...?p=2` | 200 | permitido | sin regla |
 | La Curacao | búsqueda en vivo **(antes)** | `/guatemala/search/?q=` | 200 | **prohibido** | `Disallow: /guatemala/search/` |
+| La Curacao | búsqueda en vivo (API de Adobe, desde el 27-nov) | `catalog-service.adobe.io/graphql` | 403 | permitido¹ | sin robots.txt |
 | RadioShack | ingesta (categoría) | `/guatemala/c/...?p=2` | 200 | permitido | sin regla |
 | RadioShack | búsqueda en vivo **(antes)** | `/guatemala/search/?q=` | 200 | **prohibido** | `Disallow: /guatemala/search/` |
+| RadioShack | búsqueda en vivo (API de Adobe, desde el 27-nov) | `catalog-service.adobe.io/graphql` | 403 | permitido¹ | sin robots.txt |
 | Steren | ingesta (categoría, página 1) | `/audio/audifonos.html` | 200 | permitido | sin regla |
 | Steren | ingesta (categoría, página 2+) **(antes)** | `/audio/audifonos.html?p=2` | 200 | **prohibido** | `Disallow: /*?` |
 | Steren | búsqueda en vivo **(antes)** | `/catalogsearch/result/?q=` | 200 | **prohibido** | `Disallow: /catalogsearch/` |
@@ -35,14 +37,20 @@ EPA (no maneja bien comodines ni precedencia), así que no se usa.
 | Sears | búsqueda en vivo (ahora) | `/wp-json/wc/store/products?search=` | 200 | permitido | sin regla |
 | Sears | búsqueda en vivo **(antes)** | `/?s=...&post_type=product` | 200 | **prohibido** | `Disallow: /?s=*` |
 
+¹ El robots.txt de La Curacao y RadioShack prohíbe `/graphql` y la búsqueda en
+sus propios dominios. La API está en un dominio de Adobe que no publica robots.txt
+(responde 403 sin clave), así que la regla no la nombra, pero la intención de la
+tienda podría incluirla. **Decisión del dueño (27-nov): búsqueda en vivo.** Los
+términos de uso de las tiendas y de Adobe no se revisaron.
+
 EPA además bloquea por completo a varios crawlers de IA con nombre propio
 (GPTBot, ClaudeBot, CCBot, Google-Extended, etc.). No aplica a nuestro user agent,
 pero es una señal clara de la postura de la tienda.
 
 ## Cambios
 
-- **La Curacao, RadioShack, Steren y EPA**: la búsqueda en vivo ya no consulta la
-  tienda. Se responde desde el catálogo que la ingesta recorre por categorías
+- **Steren y EPA** (hasta el 27-nov también La Curacao y RadioShack): la búsqueda
+  no consulta la tienda. Se responde desde el catálogo que la ingesta recorre por categorías
   (`gt_compare/catalog_search.py`, índice FTS5 sobre el nombre). El precio es el de
   la última corrida y el sitio lo etiqueta como "precio guardado hace X h".
 - **Steren**: su robots.txt prohíbe cualquier URL con `?`, incluida la paginación de

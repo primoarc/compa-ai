@@ -1,0 +1,38 @@
+{
+  "data": {
+    "productSearch": {
+      "items": [
+        {
+          "productView": {
+            "name": "Televisor Acme 65\" LED 4K DEMO65A",
+            "inStock": true,
+            "url": "https://www.lacuracaonline.com/guatemala/televisor-acme-demo65a-900000000011/p",
+            "images": [
+              {"url": "https://www.lacuracaonline.com/media/catalog/product/d/e/demo65a_lado.jpg", "roles": []},
+              {"url": "https://www.lacuracaonline.com/media/catalog/product/d/e/demo65a.jpg", "roles": ["image", "small_image"]}
+            ]
+          },
+          "product": {"price_range": {"minimum_price": {"final_price": {"value": 3398}, "regular_price": {"value": 5999}}}}
+        },
+        {
+          "productView": {
+            "name": "Televisor Acme 65\" QLED 4K DEMO65B",
+            "inStock": false,
+            "url": "https://www.lacuracaonline.com/guatemala/televisor-acme-demo65b-900000000022/p",
+            "images": []
+          },
+          "product": {"price_range": {"minimum_price": {"final_price": {"value": 4100.5}, "regular_price": {"value": 4100.5}}}}
+        },
+        {
+          "productView": {
+            "name": "Televisor Acme 65\" sin precio",
+            "inStock": true,
+            "url": "https://www.lacuracaonline.com/guatemala/televisor-acme-sin-precio-900000000033/p",
+            "images": []
+          },
+          "product": null
+        }
+      ]
+    }
+  }
+}

@@ -26,6 +26,8 @@ CHECKS = [
     ("max", "ac.cnstrc.com", "/search/televisor", "búsqueda"),
     ("curacao", "www.lacuracaonline.com", "/guatemala/c/electrodomesticos?p=2", "ingesta"),
     ("radioshack", "www.radioshackla.com", "/guatemala/c/audio?p=2", "ingesta"),
+    ("curacao", "catalog-service.adobe.io", "/graphql", "búsqueda"),
+    ("radioshack", "catalog-service.adobe.io", "/graphql", "búsqueda"),
     ("steren", "www.steren.com.gt", "/audio/audifonos.html", "ingesta (solo página 1)"),
     ("epa", "gt.epaenlinea.com", "/productos/herramientas.html?p=2", "ingesta"),
     ("kemik", "www.kemik.gt", "/audio?page=2", "ingesta"),
